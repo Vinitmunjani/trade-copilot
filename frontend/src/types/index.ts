@@ -8,6 +8,16 @@ export interface User {
   created_at: string;
 }
 
+export interface TradingAccount {
+  connected: boolean;
+  account_id: string | null;
+  login: string | null;
+  server: string | null;
+  platform: string | null;
+  connection_status: string | null;
+  message: string | null;
+}
+
 export interface Trade {
   id: string;
   user_id: string;

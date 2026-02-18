@@ -11,38 +11,139 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
-from app.schemas.user import AccountConnect, AccountStatus
+from app.schemas.user import (
+    AccountConnect,
+    AccountStatus,
+    TradingAccountConnect,
+    TradingAccountResponse,
+)
 from app.schemas.trade import SimulateTradeRequest, TradeResponse
 from app.services.metaapi_service import metaapi_service
+from app.services.metaapi_provisioning import metaapi_provisioning, MetaApiProvisioningError
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Account"])
 
 
-@router.post("/account/connect")
+@router.post("/account/connect", response_model=TradingAccountResponse)
 async def connect_account(
-    payload: AccountConnect,
+    payload: TradingAccountConnect,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Connect a MetaAPI broker account.
+    """Connect a trading account using MT4/MT5 broker credentials.
 
-    Stores the MetaAPI token and account ID on the user record,
-    then initiates the MetaAPI connection for real-time trade monitoring.
+    Creates a MetaAPI cloud account from the provided credentials,
+    waits for deployment, then initiates real-time trade monitoring.
+    The MT password is NOT stored — it is only used for MetaAPI provisioning.
     """
-    # Save credentials to user
-    current_user.metaapi_token = payload.metaapi_token
-    current_user.metaapi_account_id = payload.account_id
-    await db.flush()
+    # Validate platform
+    platform = payload.platform.lower()
+    if platform not in ("mt4", "mt5"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Platform must be 'mt4' or 'mt5'",
+        )
 
-    # Initiate connection
-    result = await metaapi_service.connect(current_user)
+    try:
+        # Step 1: Create MetaAPI account from broker credentials
+        logger.info(
+            f"Provisioning MetaAPI account for user {current_user.id}: "
+            f"login={payload.login}, server={payload.server}, platform={platform}"
+        )
+        account_id = await metaapi_provisioning.create_account(
+            login=payload.login,
+            password=payload.password,
+            server=payload.server,
+            platform=platform,
+        )
 
-    return {
-        "message": "Account connection initiated",
-        "account_id": payload.account_id,
-        **result,
-    }
+        # Step 2: Store account info on user (password is NOT stored)
+        current_user.metaapi_account_id = account_id
+        current_user.mt_login = payload.login
+        current_user.mt_server = payload.server
+        current_user.mt_platform = platform
+        await db.flush()
+        await db.commit()
+
+        # Step 3: Wait for deployment (non-blocking with timeout)
+        try:
+            deployed = await metaapi_provisioning.wait_for_deployment(
+                account_id, timeout=90
+            )
+            if not deployed:
+                logger.warning(
+                    f"Account {account_id} deployment timed out but may still be deploying"
+                )
+        except MetaApiProvisioningError as e:
+            logger.error(f"Deployment failed: {e.message}")
+            return TradingAccountResponse(
+                connected=False,
+                account_id=account_id,
+                login=payload.login,
+                server=payload.server,
+                platform=platform,
+                connection_status="deployment_failed",
+                message=f"Account created but deployment failed: {e.message}",
+            )
+
+        # Step 4: Initiate MetaAPI connection for live data
+        result = await metaapi_service.connect(current_user)
+
+        return TradingAccountResponse(
+            connected=result.get("connected", False),
+            account_id=account_id,
+            login=payload.login,
+            server=payload.server,
+            platform=platform,
+            connection_status=result.get("status", "unknown"),
+            message="Trading account connected successfully"
+            if result.get("connected")
+            else f"Account created, connection status: {result.get('status', 'pending')}",
+        )
+
+    except MetaApiProvisioningError as e:
+        logger.error(f"MetaAPI provisioning failed: {e.message}")
+        raise HTTPException(
+            status_code=e.status_code or status.HTTP_502_BAD_GATEWAY,
+            detail=e.message,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error connecting account: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while connecting your trading account.",
+        )
+
+
+@router.get("/account/info", response_model=TradingAccountResponse)
+async def get_account_info(
+    current_user: User = Depends(get_current_user),
+):
+    """Get trading account connection info.
+
+    Returns the connected account details including login, server,
+    platform, and real-time connection status.
+    """
+    if not current_user.metaapi_account_id:
+        return TradingAccountResponse(
+            connected=False,
+            connection_status="not_configured",
+            message="No trading account connected",
+        )
+
+    # Get live connection status
+    status_info = await metaapi_service.get_status(current_user)
+
+    return TradingAccountResponse(
+        connected=status_info.get("connected", False),
+        account_id=current_user.metaapi_account_id,
+        login=current_user.mt_login,
+        server=current_user.mt_server,
+        platform=current_user.mt_platform,
+        connection_status=status_info.get("status", "unknown"),
+        message=None,
+    )
 
 
 @router.get("/account/status", response_model=AccountStatus)
@@ -55,9 +156,11 @@ async def get_account_status(
     return AccountStatus(
         connected=status_info.get("connected", False),
         account_id=status_info.get("account_id"),
+        login=current_user.mt_login,
+        server=current_user.mt_server,
+        platform=current_user.mt_platform,
         connection_status=status_info.get("status"),
         broker=status_info.get("broker"),
-        server=status_info.get("server"),
     )
 
 

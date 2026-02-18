@@ -23,6 +23,9 @@ class UserResponse(BaseModel):
     email: str
     is_active: bool
     metaapi_account_id: str | None = None
+    mt_login: str | None = None
+    mt_server: str | None = None
+    mt_platform: str | None = None
     settings: dict | None = None
     created_at: datetime
 
@@ -37,15 +40,38 @@ class TokenResponse(BaseModel):
 
 
 class AccountConnect(BaseModel):
-    """Schema for connecting MetaAPI account."""
+    """Schema for connecting MetaAPI account (legacy)."""
     metaapi_token: str = Field(..., description="MetaAPI provisioning profile token")
     account_id: str = Field(..., description="MetaAPI account ID (MT4/MT5)")
+
+
+class TradingAccountConnect(BaseModel):
+    """Schema for connecting a trading account via MT4/MT5 credentials."""
+    login: str = Field(..., description="MT4/MT5 account number")
+    password: str = Field(..., description="MT4/MT5 account password")
+    server: str = Field(..., description="Broker server name (e.g. ICMarketsSC-Demo)")
+    platform: str = Field("mt5", description="Platform: mt4 or mt5")
+
+
+class TradingAccountResponse(BaseModel):
+    """Schema for trading account connection response."""
+    connected: bool
+    account_id: str | None = None
+    login: str | None = None
+    server: str | None = None
+    platform: str | None = None
+    connection_status: str | None = None
+    message: str | None = None
+
+    model_config = {"from_attributes": True}
 
 
 class AccountStatus(BaseModel):
     """Schema for account connection status."""
     connected: bool
     account_id: str | None = None
+    login: str | None = None
+    server: str | None = None
+    platform: str | None = None
     connection_status: str | None = None
     broker: str | None = None
-    server: str | None = None

@@ -22,6 +22,9 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     metaapi_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     metaapi_account_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    mt_login: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    mt_server: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    mt_platform: Mapped[str | None] = mapped_column(String(10), nullable=True, default="mt5")
     settings: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(

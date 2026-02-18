@@ -1,18 +1,26 @@
 import { create } from "zustand";
 import api from "@/lib/api";
-import type { TradingRules, ChecklistItem } from "@/types";
+import type { TradingRules, ChecklistItem, TradingAccount } from "@/types";
+
+interface ConnectBrokerParams {
+  login: string;
+  password: string;
+  server: string;
+  platform: string;
+}
 
 interface SettingsState {
   rules: TradingRules;
   brokerConnected: boolean;
-  brokerToken: string;
+  tradingAccount: TradingAccount | null;
   isConnecting: boolean;
   isSaving: boolean;
 
   fetchRules: () => Promise<void>;
   updateRules: (rules: Partial<TradingRules>) => Promise<void>;
-  connectBroker: (token: string) => Promise<void>;
+  connectBroker: (params: ConnectBrokerParams) => Promise<void>;
   disconnectBroker: () => Promise<void>;
+  fetchAccountInfo: () => Promise<void>;
   addChecklistItem: (label: string) => void;
   removeChecklistItem: (id: string) => void;
   reorderChecklist: (items: ChecklistItem[]) => void;
@@ -37,7 +45,7 @@ const defaultRules: TradingRules = {
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   rules: defaultRules,
   brokerConnected: false,
-  brokerToken: "",
+  tradingAccount: null,
   isConnecting: false,
   isSaving: false,
 
@@ -61,24 +69,54 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  connectBroker: async (token: string) => {
+  connectBroker: async (params: ConnectBrokerParams) => {
     set({ isConnecting: true });
     try {
-      await api.post("/settings/broker/connect", { token });
-      set({ brokerConnected: true, brokerToken: token, isConnecting: false });
-    } catch {
+      const { data } = await api.post("/account/connect", {
+        login: params.login,
+        password: params.password,
+        server: params.server,
+        platform: params.platform,
+      });
+      const account: TradingAccount = data;
+      set({
+        brokerConnected: account.connected,
+        tradingAccount: account,
+        isConnecting: false,
+      });
+      if (!account.connected) {
+        throw new Error(account.message || "Connection failed");
+      }
+    } catch (err: any) {
       set({ isConnecting: false });
-      throw new Error("Failed to connect broker");
+      const message =
+        err?.response?.data?.detail ||
+        err?.message ||
+        "Failed to connect trading account";
+      throw new Error(message);
     }
   },
 
   disconnectBroker: async () => {
     try {
-      await api.post("/settings/broker/disconnect");
+      await api.delete("/account/disconnect");
     } catch {
       // Continue with disconnect locally
     }
-    set({ brokerConnected: false, brokerToken: "" });
+    set({ brokerConnected: false, tradingAccount: null });
+  },
+
+  fetchAccountInfo: async () => {
+    try {
+      const { data } = await api.get("/account/info");
+      const account: TradingAccount = data;
+      set({
+        brokerConnected: account.connected,
+        tradingAccount: account,
+      });
+    } catch {
+      set({ brokerConnected: false, tradingAccount: null });
+    }
   },
 
   addChecklistItem: (label: string) => {

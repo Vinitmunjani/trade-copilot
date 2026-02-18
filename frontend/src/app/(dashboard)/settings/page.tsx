@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,27 +18,62 @@ import {
   Loader2, 
   CheckCircle, 
   AlertCircle,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Monitor,
+  Server,
+  KeyRound
 } from "lucide-react";
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
-  const { brokerConnected, brokerToken, isConnecting, connectBroker, disconnectBroker } = useSettingsStore();
-  const [tokenInput, setTokenInput] = useState("");
+  const { 
+    brokerConnected, 
+    tradingAccount, 
+    isConnecting, 
+    connectBroker, 
+    disconnectBroker, 
+    fetchAccountInfo 
+  } = useSettingsStore();
+
+  const [loginInput, setLoginInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [serverInput, setServerInput] = useState("");
+  const [platformInput, setPlatformInput] = useState("mt5");
   const [connectionError, setConnectionError] = useState("");
 
+  // Fetch account info on mount
+  useEffect(() => {
+    fetchAccountInfo();
+  }, [fetchAccountInfo]);
+
   const handleConnectBroker = async () => {
-    if (!tokenInput.trim()) {
-      setConnectionError("Please enter a valid MetaAPI token");
+    if (!loginInput.trim()) {
+      setConnectionError("Please enter your MT4/MT5 account number");
+      return;
+    }
+    if (!passwordInput.trim()) {
+      setConnectionError("Please enter your MT4/MT5 password");
+      return;
+    }
+    if (!serverInput.trim()) {
+      setConnectionError("Please enter your broker server name");
       return;
     }
 
     try {
       setConnectionError("");
-      await connectBroker(tokenInput.trim());
-      setTokenInput("");
-    } catch (error) {
-      setConnectionError("Failed to connect. Please check your token and try again.");
+      await connectBroker({
+        login: loginInput.trim(),
+        password: passwordInput.trim(),
+        server: serverInput.trim(),
+        platform: platformInput,
+      });
+      // Clear form on success (especially password)
+      setLoginInput("");
+      setPasswordInput("");
+      setServerInput("");
+    } catch (error: any) {
+      setConnectionError(error?.message || "Failed to connect. Please check your credentials and try again.");
     }
   };
 
@@ -135,7 +170,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <LinkIcon className="h-4 w-4 text-emerald-400" />
-              Broker Connection
+              Connect Trading Account
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -156,7 +191,9 @@ export default function SettingsPage() {
                     {brokerConnected ? "Connected" : "Not Connected"}
                   </p>
                   <p className="text-xs text-slate-400">
-                    {brokerConnected ? "MetaAPI integration active" : "No broker connection"}
+                    {brokerConnected && tradingAccount
+                      ? `${tradingAccount.login} @ ${tradingAccount.server} (${tradingAccount.platform?.toUpperCase()})`
+                      : "No trading account connected"}
                   </p>
                 </div>
               </div>
@@ -171,30 +208,97 @@ export default function SettingsPage() {
               )}
             </div>
 
+            {/* Connected Account Details */}
+            {brokerConnected && tradingAccount && (
+              <div className="space-y-2 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                <div className="flex items-center gap-2 text-sm">
+                  <Monitor className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-slate-400">Platform:</span>
+                  <span className="text-slate-200">{tradingAccount.platform?.toUpperCase()}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <KeyRound className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-slate-400">Account:</span>
+                  <span className="text-slate-200">{tradingAccount.login}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Server className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-slate-400">Server:</span>
+                  <span className="text-slate-200">{tradingAccount.server}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Wifi className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-slate-400">Status:</span>
+                  <span className="text-emerald-400 capitalize">
+                    {tradingAccount.connection_status || "connected"}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Connection Form */}
             {!brokerConnected && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="token">MetaAPI Token</Label>
+                  <Label htmlFor="mt-login">Account Number</Label>
                   <Input
-                    id="token"
-                    type="password"
-                    placeholder="Enter your MetaAPI token"
-                    value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value)}
+                    id="mt-login"
+                    type="text"
+                    placeholder="e.g., 12345678"
+                    value={loginInput}
+                    onChange={(e) => setLoginInput(e.target.value)}
                     disabled={isConnecting}
                   />
                   <p className="text-xs text-slate-500">
-                    Get your token from{" "}
-                    <a
-                      href="https://app.metaapi.cloud/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-400 hover:text-emerald-300"
-                    >
-                      MetaAPI Dashboard
-                    </a>
+                    Your MT4/MT5 trading account number
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mt-password">Password</Label>
+                  <Input
+                    id="mt-password"
+                    type="password"
+                    placeholder="Enter your MT4/MT5 password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    disabled={isConnecting}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Your password is used only to establish the connection and is not stored
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mt-server">Broker Server</Label>
+                  <Input
+                    id="mt-server"
+                    type="text"
+                    placeholder="e.g., ICMarketsSC-Demo"
+                    value={serverInput}
+                    onChange={(e) => setServerInput(e.target.value)}
+                    disabled={isConnecting}
+                  />
+                  <p className="text-xs text-slate-500">
+                    The server name from your broker (check MT4/MT5 login window)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="mt-platform">Platform</Label>
+                  <Select
+                    value={platformInput}
+                    onValueChange={setPlatformInput}
+                    disabled={isConnecting}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select platform" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mt5">MetaTrader 5 (MT5)</SelectItem>
+                      <SelectItem value="mt4">MetaTrader 4 (MT4)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {connectionError && (
@@ -206,7 +310,7 @@ export default function SettingsPage() {
 
                 <Button
                   onClick={handleConnectBroker}
-                  disabled={isConnecting || !tokenInput.trim()}
+                  disabled={isConnecting || !loginInput.trim() || !passwordInput.trim() || !serverInput.trim()}
                   className="w-full"
                 >
                   {isConnecting ? (
@@ -217,7 +321,7 @@ export default function SettingsPage() {
                   ) : (
                     <>
                       <LinkIcon className="mr-2 h-4 w-4" />
-                      Connect Broker
+                      Connect Trading Account
                     </>
                   )}
                 </Button>
@@ -232,7 +336,11 @@ export default function SettingsPage() {
               </p>
               <p className="mb-2">
                 <CheckCircle className="inline h-3 w-3 mr-1 text-emerald-400" />
-                Automated AI analysis
+                Read-only access — no trades executed from this app
+              </p>
+              <p className="mb-2">
+                <CheckCircle className="inline h-3 w-3 mr-1 text-emerald-400" />
+                Automated AI analysis on every trade
               </p>
               <p>
                 <CheckCircle className="inline h-3 w-3 mr-1 text-emerald-400" />
