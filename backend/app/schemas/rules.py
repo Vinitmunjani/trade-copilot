@@ -1,0 +1,53 @@
+"""Pydantic schemas for trading rules."""
+
+import uuid
+from datetime import datetime
+from pydantic import BaseModel, Field
+
+
+class TradingRulesUpdate(BaseModel):
+    """Schema for updating trading rules."""
+    max_risk_percent: float | None = Field(None, ge=0.1, le=10.0)
+    min_risk_reward: float | None = Field(None, ge=0.5, le=10.0)
+    max_trades_per_day: int | None = Field(None, ge=1, le=50)
+    max_daily_loss_percent: float | None = Field(None, ge=1.0, le=20.0)
+    max_concurrent_trades: int | None = Field(None, ge=1, le=20)
+    blocked_sessions: list[str] | None = None
+    allowed_symbols: list[str] | None = None
+    custom_checklist: list[str] | None = None
+    min_time_between_trades: int | None = Field(None, ge=0, le=120)
+
+
+class TradingRulesResponse(BaseModel):
+    """Trading rules response."""
+    id: uuid.UUID
+    user_id: uuid.UUID
+    max_risk_percent: float
+    min_risk_reward: float
+    max_trades_per_day: int
+    max_daily_loss_percent: float
+    max_concurrent_trades: int
+    blocked_sessions: list[str] | None
+    allowed_symbols: list[str] | None
+    custom_checklist: list[str] | None
+    min_time_between_trades: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RuleAdherenceItem(BaseModel):
+    """Single rule adherence check."""
+    rule: str
+    description: str
+    adhered: bool
+    details: str | None = None
+
+
+class RuleAdherenceResponse(BaseModel):
+    """Full rule adherence report."""
+    overall_score: float = Field(..., description="0-100 adherence score")
+    items: list[RuleAdherenceItem]
+    period_start: datetime
+    period_end: datetime
