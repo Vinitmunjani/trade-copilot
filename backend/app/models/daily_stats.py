@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, Float, Integer, JSON, ForeignKey, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from app.models.compat import PortableUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -19,10 +19,10 @@ class DailyStats(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        PortableUUID(), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        PortableUUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
 

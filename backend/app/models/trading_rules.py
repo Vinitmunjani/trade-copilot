@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Float, Integer, JSON, ForeignKey, DateTime
-from sqlalchemy.dialects.postgresql import UUID
+from app.models.compat import PortableUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -16,10 +16,10 @@ class TradingRules(Base):
     __tablename__ = "trading_rules"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        PortableUUID(), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+        PortableUUID(), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
     )
 
     # Risk rules
