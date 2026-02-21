@@ -6,7 +6,7 @@ interface ConnectBrokerParams {
   login: string;
   password: string;
   server: string;
-  platform: string;
+  platform: string; // Broker name: ICMarkets, Exness, XM
 }
 
 interface SettingsState {
@@ -72,20 +72,33 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   connectBroker: async (params: ConnectBrokerParams) => {
     set({ isConnecting: true });
     try {
-      const { data } = await api.post("/account/connect", {
-        login: params.login,
-        password: params.password,
-        server: params.server,
-        platform: params.platform,
+      // Send broker instead of platform - map platform name to broker
+      const brokerName = params.platform === "MT5" ? "Exness" : params.platform;
+      
+      const { data } = await api.post("/account/connect", null, {
+        params: {
+          broker: brokerName,
+          login: params.login,
+          password: params.password,
+          server: params.server,
+        },
       });
-      const account: TradingAccount = data;
+      
+      const account: TradingAccount = {
+        login: data.login,
+        broker: data.broker,
+        connected: data.status === "connected",
+        message: data.status === "connected" ? "Connected" : data.error || "Connection failed",
+      };
+      
       set({
         brokerConnected: account.connected,
         tradingAccount: account,
         isConnecting: false,
       });
+      
       if (!account.connected) {
-        throw new Error(account.message || "Connection failed");
+        throw new Error(account.message);
       }
     } catch (err: any) {
       set({ isConnecting: false });
@@ -100,43 +113,68 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   disconnectBroker: async () => {
     try {
       await api.delete("/account/disconnect");
+      set({
+        brokerConnected: false,
+        tradingAccount: null,
+      });
     } catch {
-      // Continue with disconnect locally
+      set({
+        brokerConnected: false,
+        tradingAccount: null,
+      });
     }
-    set({ brokerConnected: false, tradingAccount: null });
   },
 
   fetchAccountInfo: async () => {
     try {
-      const { data } = await api.get("/account/info");
-      const account: TradingAccount = data;
-      set({
-        brokerConnected: account.connected,
-        tradingAccount: account,
-      });
+      const { data } = await api.get("/account/list");
+      if (data && data.length > 0) {
+        const account = data[0];
+        set({
+          brokerConnected: true,
+          tradingAccount: {
+            login: account.login,
+            broker: account.broker,
+            connected: account.status === "connected",
+            message: "Connected",
+          },
+        });
+      }
     } catch {
-      set({ brokerConnected: false, tradingAccount: null });
+      // Silently fail
     }
   },
 
   addChecklistItem: (label: string) => {
-    const { rules } = get();
     const newItem: ChecklistItem = {
-      id: `c${Date.now()}`,
+      id: Math.random().toString(36).substr(2, 9),
       label,
       required: false,
-      order: rules.checklist.length + 1,
+      order: (get().rules.checklist?.length || 0) + 1,
     };
-    set({ rules: { ...rules, checklist: [...rules.checklist, newItem] } });
+    set((state) => ({
+      rules: {
+        ...state.rules,
+        checklist: [...(state.rules.checklist || []), newItem],
+      },
+    }));
   },
 
   removeChecklistItem: (id: string) => {
-    const { rules } = get();
-    set({ rules: { ...rules, checklist: rules.checklist.filter((c) => c.id !== id) } });
+    set((state) => ({
+      rules: {
+        ...state.rules,
+        checklist: state.rules.checklist?.filter((item) => item.id !== id) || [],
+      },
+    }));
   },
 
   reorderChecklist: (items: ChecklistItem[]) => {
-    const { rules } = get();
-    set({ rules: { ...rules, checklist: items.map((item, i) => ({ ...item, order: i + 1 })) } });
+    set((state) => ({
+      rules: {
+        ...state.rules,
+        checklist: items,
+      },
+    }));
   },
 }));
