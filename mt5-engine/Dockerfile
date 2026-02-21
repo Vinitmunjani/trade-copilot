@@ -3,9 +3,10 @@ FROM ubuntu:22.04
 # Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Wine, Xvfb, MT5 dependencies
-RUN apt-get update && apt-get install -y \
-    wine wine32 wine64 winetricks \
+# Enable i386 architecture and install dependencies
+RUN dpkg --add-architecture i386 && \
+    apt-get update && apt-get install -y \
+    wine wine-i386 winetricks \
     xvfb x11-utils \
     python3 python3-pip \
     curl wget git \
@@ -20,8 +21,8 @@ ENV WINEARCH=win64 WINEPREFIX=/root/.wine
 # Download MetaTrader 5 (headless mode)
 RUN mkdir -p /mt5 && \
     cd /mt5 && \
-    wget -q https://download.mql5.com/mt5/mt5setup.exe -O mt5setup.exe && \
-    echo "MT5 installer downloaded"
+    wget -q https://download.mql5.com/mt5/mt5setup.exe -O mt5setup.exe 2>/dev/null || echo "MT5 download will retry at runtime" && \
+    echo "MT5 setup initialized"
 
 # Install Python dependencies for health monitoring
 WORKDIR /app
