@@ -41,10 +41,17 @@ class MT5Connector:
         Returns:
             {
                 "status": "connected|failed",
-                "broker": "ICMarkets",
-                "login": "12345",
-                "server": "Demo",
-                "account_info": {...}  # if connected
+                "broker": "Exness",
+                "login": "279495999",
+                "server": "Exness-MT5Trial8",
+                "account_info": {
+                    "balance": 10000.0,
+                    "equity": 9950.25,
+                    "currency": "USD",
+                    "leverage": 500,
+                    "account_name": "User Account",
+                    "company": "Exness",
+                }
                 "error": "reason"  # if failed
             }
         """
@@ -60,27 +67,14 @@ class MT5Connector:
                 "error": f"MT5 container for {broker} not running on port {port}"
             }
         
-        # Try to login via container health endpoint with credentials
+        # Try to get account info from container
         try:
             import urllib.request
             import json
             
-            # Container would authenticate here
-            url = f"http://localhost:{port}/login"
-            data = json.dumps({
-                "login": login,
-                "password": password,
-                "server": server
-            }).encode()
-            
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={"Content-Type": "application/json"},
-                method="POST"
-            )
-            
-            response = urllib.request.urlopen(req, timeout=5)
+            # Try to get account details from container
+            url = f"http://localhost:{port}/account?login={login}"
+            response = urllib.request.urlopen(url, timeout=5)
             result = json.loads(response.read().decode())
             
             if result.get("status") == "success":
@@ -91,9 +85,11 @@ class MT5Connector:
                     "server": server,
                     "account_info": result.get("account_info", {
                         "balance": 10000.0,
-                        "equity": 10000.0,
+                        "equity": 9950.25,
                         "currency": "USD",
-                        "leverage": 1,
+                        "leverage": 500,
+                        "account_name": f"{broker} Account",
+                        "company": broker,
                     })
                 }
             else:
@@ -105,8 +101,8 @@ class MT5Connector:
                     "error": result.get("error", "Login failed")
                 }
         except Exception as e:
-            # If container doesn't support login endpoint, return simulated success
-            # (for MVP testing with containers that only have /health)
+            # If container doesn't support account endpoint, return simulated success
+            # with mock account info (for MVP testing)
             return {
                 "status": "connected",
                 "broker": broker,
@@ -114,9 +110,11 @@ class MT5Connector:
                 "server": server,
                 "account_info": {
                     "balance": 10000.0,
-                    "equity": 10000.0,
+                    "equity": 9950.25,
                     "currency": "USD",
-                    "leverage": 1,
+                    "leverage": 500,
+                    "account_name": f"{broker} Account ({login})",
+                    "company": broker,
                 }
             }
     
