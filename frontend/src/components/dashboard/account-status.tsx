@@ -1,18 +1,33 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useSettingsStore } from "@/stores/settings-store";
 import { Card } from "@/components/ui/card";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 export function AccountStatus() {
   const { tradingAccount, brokerConnected, fetchAccountInfo } = useSettingsStore();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAccountInfo();
+    setLoading(true);
+    fetchAccountInfo().finally(() => setLoading(false));
   }, [fetchAccountInfo]);
 
-  if (!brokerConnected || !tradingAccount) {
+  if (loading) {
+    return (
+      <Card className="p-6 border-slate-800 bg-slate-900/50">
+        <div className="flex items-center gap-3">
+          <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
+          <div>
+            <p className="text-sm font-medium text-slate-300">Loading account...</p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!brokerConnected || !tradingAccount || !tradingAccount.login) {
     return (
       <Card className="p-6 border-slate-800 bg-slate-900/50">
         <div className="flex items-center gap-3">
@@ -36,7 +51,7 @@ export function AccountStatus() {
             <h3 className="text-sm font-semibold text-slate-100">Trading Account</h3>
           </div>
           <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            Connected
+            {tradingAccount.connection_status === "connected" ? "Connected" : "Disconnected"}
           </span>
         </div>
 
@@ -70,13 +85,13 @@ export function AccountStatus() {
           <div>
             <p className="text-xs text-slate-500 uppercase tracking-wide">Status</p>
             <p className="text-sm font-medium text-emerald-400 mt-1">
-              {tradingAccount.connection_status || "Connected"}
+              {tradingAccount.connection_status === "connected" ? "✓ Connected" : "Disconnected"}
             </p>
           </div>
         </div>
 
         {/* Message */}
-        {tradingAccount.message && (
+        {tradingAccount.message && tradingAccount.message !== "Connected" && (
           <div className="pt-2 border-t border-slate-800">
             <p className="text-xs text-slate-400">{tradingAccount.message}</p>
           </div>

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import api from "@/lib/api";
 import type { TradingRules, ChecklistItem, TradingAccount } from "@/types";
 
@@ -42,143 +43,151 @@ const defaultRules: TradingRules = {
   ],
 };
 
-export const useSettingsStore = create<SettingsState>((set, get) => ({
-  rules: defaultRules,
-  brokerConnected: false,
-  tradingAccount: null,
-  isConnecting: false,
-  isSaving: false,
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set, get) => ({
+      rules: defaultRules,
+      brokerConnected: false,
+      tradingAccount: null,
+      isConnecting: false,
+      isSaving: false,
 
-  fetchRules: async () => {
-    try {
-      const { data } = await api.get("/settings/rules");
-      set({ rules: data });
-    } catch {
-      // Use defaults
-    }
-  },
+      fetchRules: async () => {
+        try {
+          const { data } = await api.get("/settings/rules");
+          set({ rules: data });
+        } catch {
+          // Use defaults
+        }
+      },
 
-  updateRules: async (updates: Partial<TradingRules>) => {
-    set({ isSaving: true });
-    const newRules = { ...get().rules, ...updates };
-    try {
-      await api.put("/settings/rules", newRules);
-      set({ rules: newRules, isSaving: false });
-    } catch {
-      set({ rules: newRules, isSaving: false });
-    }
-  },
+      updateRules: async (updates: Partial<TradingRules>) => {
+        set({ isSaving: true });
+        const newRules = { ...get().rules, ...updates };
+        try {
+          await api.put("/settings/rules", newRules);
+          set({ rules: newRules, isSaving: false });
+        } catch {
+          set({ rules: newRules, isSaving: false });
+        }
+      },
 
-  connectBroker: async (params: ConnectBrokerParams) => {
-    set({ isConnecting: true });
-    try {
-      // Send broker parameter - platform is the broker name (Exness, ICMarkets, XM)
-      const { data } = await api.post("/account/connect", null, {
-        params: {
-          broker: params.platform,
-          login: params.login,
-          password: params.password,
-          server: params.server,
-        },
-      });
-      
-      const account: TradingAccount = {
-        connected: data.status === "connected",
-        account_id: data.id || null,
-        login: data.login || null,
-        server: data.server || null,
-        platform: data.broker || null,
-        connection_status: data.status || "disconnected",
-        message: data.status === "connected" ? "Connected" : data.error || "Connection failed",
-      };
-      
-      set({
-        brokerConnected: account.connected,
-        tradingAccount: account,
-        isConnecting: false,
-      });
-      
-      if (!account.connected) {
-        throw new Error(account.message || "Connection failed");
-      }
-    } catch (err: any) {
-      set({ isConnecting: false });
-      const message =
-        err?.response?.data?.detail ||
-        err?.message ||
-        "Failed to connect trading account";
-      throw new Error(message);
-    }
-  },
+      connectBroker: async (params: ConnectBrokerParams) => {
+        set({ isConnecting: true });
+        try {
+          // Send broker parameter - platform is the broker name (Exness, ICMarkets, XM)
+          const { data } = await api.post("/account/connect", null, {
+            params: {
+              broker: params.platform,
+              login: params.login,
+              password: params.password,
+              server: params.server,
+            },
+          });
+          
+          const account: TradingAccount = {
+            connected: data.status === "connected",
+            account_id: data.id || null,
+            login: data.login || null,
+            server: data.server || null,
+            platform: data.broker || params.platform || null,
+            connection_status: data.status || "disconnected",
+            message: data.status === "connected" ? "Connected" : data.error || "Connection failed",
+          };
+          
+          set({
+            brokerConnected: account.connected,
+            tradingAccount: account,
+            isConnecting: false,
+          });
+          
+          if (!account.connected) {
+            throw new Error(account.message || "Connection failed");
+          }
+        } catch (err: any) {
+          set({ isConnecting: false });
+          const message =
+            err?.response?.data?.detail ||
+            err?.message ||
+            "Failed to connect trading account";
+          throw new Error(message);
+        }
+      },
 
-  disconnectBroker: async () => {
-    try {
-      await api.delete("/account/disconnect");
-      set({
-        brokerConnected: false,
-        tradingAccount: null,
-      });
-    } catch {
-      set({
-        brokerConnected: false,
-        tradingAccount: null,
-      });
-    }
-  },
+      disconnectBroker: async () => {
+        try {
+          await api.delete("/account/disconnect");
+          set({
+            brokerConnected: false,
+            tradingAccount: null,
+          });
+        } catch {
+          set({
+            brokerConnected: false,
+            tradingAccount: null,
+          });
+        }
+      },
 
-  fetchAccountInfo: async () => {
-    try {
-      const { data } = await api.get("/account/list");
-      if (data && data.length > 0) {
-        const account = data[0];
-        set({
-          brokerConnected: true,
-          tradingAccount: {
-            connected: account.status === "connected",
-            account_id: account.id || null,
-            login: account.login || null,
-            server: account.server || null,
-            platform: account.broker || null,
-            connection_status: account.status || "disconnected",
-            message: "Connected",
+      fetchAccountInfo: async () => {
+        try {
+          const { data } = await api.get("/account/list");
+          if (data && data.length > 0) {
+            const account = data[0];
+            const tradingAccount: TradingAccount = {
+              connected: account.status === "connected",
+              account_id: account.id || null,
+              login: account.login || null,
+              server: account.server || null,
+              platform: account.broker || null,
+              connection_status: account.status || "disconnected",
+              message: "Connected",
+            };
+            set({
+              brokerConnected: true,
+              tradingAccount,
+            });
+          }
+        } catch (err) {
+          console.error("Failed to fetch account info:", err);
+        }
+      },
+
+      addChecklistItem: (label: string) => {
+        const newItem: ChecklistItem = {
+          id: Math.random().toString(36).substr(2, 9),
+          label,
+          required: false,
+          order: (get().rules.checklist?.length || 0) + 1,
+        };
+        set((state) => ({
+          rules: {
+            ...state.rules,
+            checklist: [...(state.rules.checklist || []), newItem],
           },
-        });
-      }
-    } catch {
-      // Silently fail
+        }));
+      },
+
+      removeChecklistItem: (id: string) => {
+        set((state) => ({
+          rules: {
+            ...state.rules,
+            checklist: state.rules.checklist?.filter((item) => item.id !== id) || [],
+          },
+        }));
+      },
+
+      reorderChecklist: (items: ChecklistItem[]) => {
+        set((state) => ({
+          rules: {
+            ...state.rules,
+            checklist: items,
+          },
+        }));
+      },
+    }),
+    {
+      name: "settings-store",
     }
-  },
-
-  addChecklistItem: (label: string) => {
-    const newItem: ChecklistItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      label,
-      required: false,
-      order: (get().rules.checklist?.length || 0) + 1,
-    };
-    set((state) => ({
-      rules: {
-        ...state.rules,
-        checklist: [...(state.rules.checklist || []), newItem],
-      },
-    }));
-  },
-
-  removeChecklistItem: (id: string) => {
-    set((state) => ({
-      rules: {
-        ...state.rules,
-        checklist: state.rules.checklist?.filter((item) => item.id !== id) || [],
-      },
-    }));
-  },
-
-  reorderChecklist: (items: ChecklistItem[]) => {
-    set((state) => ({
-      rules: {
-        ...state.rules,
-        checklist: items,
-      },
-    }));
-  },
-}));
+  )
+);
