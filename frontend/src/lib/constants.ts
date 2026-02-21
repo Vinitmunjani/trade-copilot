@@ -1,5 +1,6 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws/trades";
+// HTTP proxy endpoint (on OpenClaw server port 8080)
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://10.10.10.8:8080";
+export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://10.10.10.8:8080/ws/trades";
 
 export const SESSIONS = [
   { value: "london", label: "London", hours: "08:00-16:00 GMT" },
