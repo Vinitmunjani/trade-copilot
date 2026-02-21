@@ -10,7 +10,7 @@ interface AuthState {
   isAuthenticated: boolean;
 
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, confirm_password: string) => Promise<void>;
   logout: () => void;
   loadFromStorage: () => void;
   clearError: () => void;
@@ -26,16 +26,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
-      const formData = new URLSearchParams();
-      formData.append("username", email);
-      formData.append("password", password);
-      const { data } = await api.post<AuthResponse>("/auth/login", formData, {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      const response = await api.post<any>("/auth/login", null, {
+        params: { email, password },
       });
+      const data = response.data;
       localStorage.setItem("token", data.access_token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("user", JSON.stringify(data.user || { id: data.access_token, email }));
       set({
-        user: data.user,
+        user: data.user || { id: data.access_token, email },
         token: data.access_token,
         isAuthenticated: true,
         isLoading: false,
@@ -47,18 +45,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  register: async (name: string, email: string, password: string) => {
+  register: async (email: string, password: string, confirm_password: string) => {
     set({ isLoading: true, error: null });
     try {
-      const { data } = await api.post<AuthResponse>("/auth/register", {
-        name,
-        email,
-        password,
+      const response = await api.post<any>("/auth/register", null, {
+        params: { email, password, confirm_password },
       });
+      const data = response.data;
       localStorage.setItem("token", data.access_token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("user", JSON.stringify(data.user || { id: data.access_token, email }));
       set({
-        user: data.user,
+        user: data.user || { id: data.access_token, email },
         token: data.access_token,
         isAuthenticated: true,
         isLoading: false,
