@@ -1,4 +1,5 @@
 """Trading rules model — user-defined risk management rules."""
+from typing import Optional, Dict, Any
 
 import uuid
 from datetime import datetime
@@ -30,13 +31,13 @@ class TradingRules(Base):
     max_concurrent_trades: Mapped[int] = mapped_column(Integer, default=3)
 
     # Session rules — list of blocked sessions: ["asian", "london", "new_york"]
-    blocked_sessions: Mapped[list | None] = mapped_column(JSON, nullable=True, default=list)
+    blocked_sessions: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=list)
 
     # Allowed symbols — empty means all allowed
-    allowed_symbols: Mapped[list | None] = mapped_column(JSON, nullable=True, default=list)
+    allowed_symbols: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=list)
 
     # Custom checklist items — user-defined pre-trade checklist
-    custom_checklist: Mapped[list | None] = mapped_column(JSON, nullable=True, default=list)
+    custom_checklist: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=list)
 
     # Minimum time between trades (minutes) to prevent revenge trading
     min_time_between_trades: Mapped[int] = mapped_column(Integer, default=10)

@@ -1,4 +1,5 @@
 """Trade model."""
+from typing import Optional, Dict, Any
 
 import uuid
 from datetime import datetime
@@ -32,7 +33,7 @@ class Trade(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         PortableUUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    external_trade_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    external_trade_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
 
     # Trade details
     symbol: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
@@ -40,23 +41,23 @@ class Trade(Base):
         Enum(TradeDirection), nullable=False
     )
     entry_price: Mapped[float] = mapped_column(Float, nullable=False)
-    exit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    sl: Mapped[float | None] = mapped_column(Float, nullable=True)
-    tp: Mapped[float | None] = mapped_column(Float, nullable=True)
+    exit_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    sl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    tp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     lot_size: Mapped[float] = mapped_column(Float, nullable=False)
     open_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    close_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    close_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Performance
-    pnl: Mapped[float | None] = mapped_column(Float, nullable=True)
-    pnl_r: Mapped[float | None] = mapped_column(Float, nullable=True)  # P&L in R-multiples
-    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pnl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pnl_r: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # P&L in R-multiples
+    duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # AI analysis
-    ai_score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-10
-    ai_analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Pre-trade analysis
-    ai_review: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Post-trade review
-    behavioral_flags: Mapped[list | None] = mapped_column(JSON, nullable=True, default=list)
+    ai_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 1-10
+    ai_analysis: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Pre-trade analysis
+    ai_review: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Post-trade review
+    behavioral_flags: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=list)
 
     # Status
     status: Mapped[TradeStatus] = mapped_column(
@@ -64,7 +65,7 @@ class Trade(Base):
     )
 
     # Metadata
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
     )

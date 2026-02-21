@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Optional, Dict, Any
 
 from sqlalchemy import String, DateTime, Text, JSON
 from app.models.compat import PortableUUID
@@ -20,12 +21,12 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    metaapi_token: Mapped[str | None] = mapped_column(Text, nullable=True)
-    metaapi_account_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    mt_login: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    mt_server: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    mt_platform: Mapped[str | None] = mapped_column(String(10), nullable=True, default="mt5")
-    settings: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
+    metaapi_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    metaapi_account_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    mt_login: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    mt_server: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    mt_platform: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, default="mt5")
+    settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True, default=dict)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow

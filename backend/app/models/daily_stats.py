@@ -1,4 +1,5 @@
 """Daily statistics model."""
+from typing import Optional, Dict, Any
 
 import uuid
 from datetime import date, datetime
@@ -43,13 +44,13 @@ class DailyStats(Base):
     r_expectancy: Mapped[float] = mapped_column(Float, default=0.0)
 
     # Session breakdown
-    session_breakdown: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    session_breakdown: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     # Symbol breakdown
-    symbol_breakdown: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    symbol_breakdown: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # Behavioral
     behavioral_flags_count: Mapped[int] = mapped_column(Integer, default=0)
-    avg_ai_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_ai_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
