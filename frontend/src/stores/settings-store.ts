@@ -7,7 +7,7 @@ interface ConnectBrokerParams {
   login: string;
   password: string;
   server: string;
-  platform: string; // Broker name: ICMarkets, Exness, XM
+  platform: string;
 }
 
 interface SettingsState {
@@ -25,6 +25,7 @@ interface SettingsState {
   addChecklistItem: (label: string) => void;
   removeChecklistItem: (id: string) => void;
   reorderChecklist: (items: ChecklistItem[]) => void;
+  setTradingAccount: (account: TradingAccount | null) => void;
 }
 
 const defaultRules: TradingRules = {
@@ -75,7 +76,8 @@ export const useSettingsStore = create<SettingsState>()(
       connectBroker: async (params: ConnectBrokerParams) => {
         set({ isConnecting: true });
         try {
-          // Send broker parameter - platform is the broker name (Exness, ICMarkets, XM)
+          console.log("🔌 Connecting to broker:", params.platform);
+          
           const { data } = await api.post("/account/connect", null, {
             params: {
               broker: params.platform,
@@ -85,15 +87,19 @@ export const useSettingsStore = create<SettingsState>()(
             },
           });
           
+          console.log("📡 Backend response:", data);
+          
           const account: TradingAccount = {
             connected: data.status === "connected",
             account_id: data.id || null,
-            login: data.login || null,
-            server: data.server || null,
-            platform: data.broker || params.platform || null,
+            login: data.login || params.login,
+            server: data.server || params.server,
+            platform: data.broker || params.platform,
             connection_status: data.status || "disconnected",
             message: data.status === "connected" ? "Connected" : data.error || "Connection failed",
           };
+          
+          console.log("💾 Saving account:", account);
           
           set({
             brokerConnected: account.connected,
@@ -105,6 +111,7 @@ export const useSettingsStore = create<SettingsState>()(
             throw new Error(account.message || "Connection failed");
           }
         } catch (err: any) {
+          console.error("❌ Connection error:", err);
           set({ isConnecting: false });
           const message =
             err?.response?.data?.detail ||
@@ -131,7 +138,10 @@ export const useSettingsStore = create<SettingsState>()(
 
       fetchAccountInfo: async () => {
         try {
+          console.log("📥 Fetching account info...");
           const { data } = await api.get("/account/list");
+          console.log("📦 Account list response:", data);
+          
           if (data && data.length > 0) {
             const account = data[0];
             const tradingAccount: TradingAccount = {
@@ -143,14 +153,34 @@ export const useSettingsStore = create<SettingsState>()(
               connection_status: account.status || "disconnected",
               message: "Connected",
             };
+            
+            console.log("✅ Loaded account:", tradingAccount);
+            
             set({
               brokerConnected: true,
               tradingAccount,
             });
+          } else {
+            console.log("⚠️ No accounts found");
+            set({
+              brokerConnected: false,
+              tradingAccount: null,
+            });
           }
         } catch (err) {
-          console.error("Failed to fetch account info:", err);
+          console.error("❌ Fetch account error:", err);
+          set({
+            brokerConnected: false,
+            tradingAccount: null,
+          });
         }
+      },
+
+      setTradingAccount: (account: TradingAccount | null) => {
+        set({
+          tradingAccount: account,
+          brokerConnected: account?.connected || false,
+        });
       },
 
       addChecklistItem: (label: string) => {
