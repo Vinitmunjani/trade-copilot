@@ -124,9 +124,10 @@ async def connect_account(broker: str = None, login: str = None, password: str =
         "account_info": result.get("account_info", {})
     }
     
+    # IMPORTANT: Return the ORIGINAL broker param, not what came from MT5 container
     return {
         "id": account_id,
-        "broker": broker,
+        "broker": broker,  # Use the broker parameter, not the container response
         "login": login,
         "server": server or "Demo",
         "status": "connected",
