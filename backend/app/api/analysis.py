@@ -1,4 +1,5 @@
 """Analysis routes — AI re-scoring, pattern analysis, and readiness assessment."""
+from typing import Optional, List, Dict, Union, Any
 
 import uuid
 import logging

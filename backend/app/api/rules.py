@@ -1,6 +1,7 @@
 """Trading rules routes — CRUD for user-defined risk management rules and checklists."""
 
 import logging
+from typing import Optional, List, Dict, Union
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
