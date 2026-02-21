@@ -72,12 +72,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   connectBroker: async (params: ConnectBrokerParams) => {
     set({ isConnecting: true });
     try {
-      // Send broker instead of platform - map platform name to broker
-      const brokerName = params.platform === "MT5" ? "Exness" : params.platform;
-      
+      // Send broker parameter - platform is the broker name (Exness, ICMarkets, XM)
       const { data } = await api.post("/account/connect", null, {
         params: {
-          broker: brokerName,
+          broker: params.platform,
           login: params.login,
           password: params.password,
           server: params.server,
@@ -85,9 +83,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       });
       
       const account: TradingAccount = {
-        login: data.login,
-        broker: data.broker,
         connected: data.status === "connected",
+        account_id: data.id || null,
+        login: data.login || null,
+        server: data.server || null,
+        platform: data.broker || null,
+        connection_status: data.status || "disconnected",
         message: data.status === "connected" ? "Connected" : data.error || "Connection failed",
       };
       
@@ -98,7 +99,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       });
       
       if (!account.connected) {
-        throw new Error(account.message);
+        throw new Error(account.message || "Connection failed");
       }
     } catch (err: any) {
       set({ isConnecting: false });
@@ -133,9 +134,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         set({
           brokerConnected: true,
           tradingAccount: {
-            login: account.login,
-            broker: account.broker,
             connected: account.status === "connected",
+            account_id: account.id || null,
+            login: account.login || null,
+            server: account.server || null,
+            platform: account.broker || null,
+            connection_status: account.status || "disconnected",
             message: "Connected",
           },
         });
