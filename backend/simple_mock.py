@@ -1,7 +1,8 @@
-"""Mock API with session persistence and MT5 connection."""
+"""Mock API with real MT5 connection logic."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
+from mt5_connector import MT5Connector
 
 app = FastAPI(title="Trade Co-Pilot")
 
@@ -86,10 +87,10 @@ async def get_me(authorization: str = None):
         "email": session["email"]
     }
 
-# ACCOUNT ENDPOINTS
+# ACCOUNT ENDPOINTS - WITH REAL MT5 CONNECTION
 @app.post("/api/v1/account/connect")
 async def connect_account(broker: str = None, login: str = None, password: str = None, server: str = None, authorization: str = None):
-    """Connect broker account."""
+    """Connect broker account - REAL MT5 LOGIN."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -99,23 +100,19 @@ async def connect_account(broker: str = None, login: str = None, password: str =
     if not session:
         return {"detail": "Invalid token"}, 401
     
-    if not broker or not login:
-        return {"detail": "Missing broker or login"}, 422
+    if not broker or not login or not password:
+        return {"detail": "Missing broker, login, or password"}, 422
     
-    # Map broker to MT5 container port
-    mt5_ports = {
-        "ICMarkets": 5001,
-        "Exness": 5002,
-        "XM": 5003,
-        "ic_markets": 5001,
-        "exness": 5002,
-        "xm": 5003,
-    }
+    # REAL MT5 CONNECTION
+    result = MT5Connector.connect_account(broker, login, password, server or "Demo")
     
-    mt5_port = mt5_ports.get(broker.lower(), 5001)
+    if result["status"] == "failed":
+        return {"detail": result.get("error", "Failed to connect to MT5")}, 400
     
-    # Create account record (mock connection - don't verify)
+    # Create account record
     account_id = str(uuid.uuid4())
+    mt5_port = MT5Connector.get_port_for_broker(broker)
+    
     accounts[account_id] = {
         "id": account_id,
         "user_id": session["user_id"],
@@ -123,7 +120,8 @@ async def connect_account(broker: str = None, login: str = None, password: str =
         "login": login,
         "server": server or "Demo",
         "status": "connected",
-        "mt5_port": mt5_port
+        "mt5_port": mt5_port,
+        "account_info": result.get("account_info", {})
     }
     
     return {
@@ -131,7 +129,8 @@ async def connect_account(broker: str = None, login: str = None, password: str =
         "broker": broker,
         "login": login,
         "server": server or "Demo",
-        "status": "connected"
+        "status": "connected",
+        "account_info": result.get("account_info", {})
     }
 
 @app.get("/api/v1/account/list")
