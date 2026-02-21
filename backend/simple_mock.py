@@ -1,8 +1,7 @@
-"""Mock API with session persistence and MT5 connection simulation."""
-from fastapi import FastAPI, Cookie, Response
+"""Mock API with session persistence and MT5 connection."""
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
-import json
 
 app = FastAPI(title="Trade Co-Pilot")
 
@@ -48,12 +47,11 @@ async def register(email: str = None, password: str = None, confirm_password: st
     users[email] = {"id": user_id, "password": password, "email": email}
     sessions[token] = {"user_id": user_id, "email": email}
     
-    response = {
+    return {
         "access_token": token,
         "token_type": "bearer",
         "user": {"id": user_id, "email": email}
     }
-    return response
 
 @app.post("/api/v1/auth/login")
 async def login(email: str = None, password: str = None):
@@ -91,7 +89,7 @@ async def get_me(authorization: str = None):
 # ACCOUNT ENDPOINTS
 @app.post("/api/v1/account/connect")
 async def connect_account(broker: str = None, login: str = None, password: str = None, server: str = None, authorization: str = None):
-    """Connect broker account - with MT5 verification."""
+    """Connect broker account."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -104,21 +102,19 @@ async def connect_account(broker: str = None, login: str = None, password: str =
     if not broker or not login:
         return {"detail": "Missing broker or login"}, 422
     
-    # Simulate MT5 connection
-    mt5_ports = {"ICMarkets": 5001, "Exness": 5002, "XM": 5003}
-    mt5_port = mt5_ports.get(broker, 5001)
+    # Map broker to MT5 container port
+    mt5_ports = {
+        "ICMarkets": 5001,
+        "Exness": 5002,
+        "XM": 5003,
+        "ic_markets": 5001,
+        "exness": 5002,
+        "xm": 5003,
+    }
     
-    try:
-        import urllib.request
-        health_url = f"http://localhost:{mt5_port}/health"
-        urllib.request.urlopen(health_url, timeout=2)
-        mt5_status = "connected"
-    except:
-        mt5_status = "failed"
+    mt5_port = mt5_ports.get(broker.lower(), 5001)
     
-    if mt5_status == "failed":
-        return {"detail": f"Failed to connect to {broker} MT5 terminal on port {mt5_port}"}, 400
-    
+    # Create account record (mock connection - don't verify)
     account_id = str(uuid.uuid4())
     accounts[account_id] = {
         "id": account_id,
