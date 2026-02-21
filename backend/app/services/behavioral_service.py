@@ -12,7 +12,7 @@ Detects trading psychology red flags using rule-based logic:
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Optional, Any
 
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +40,7 @@ SESSIONS = {
 }
 
 
-def get_current_session(dt: datetime | None = None) -> str:
+def get_current_session(dt: Optional[datetime] = None) -> str:
     """Determine the current trading session based on UTC hour.
 
     Args:
@@ -83,8 +83,8 @@ def get_asset_class(symbol: str) -> list[str]:
 async def detect_revenge_trading(
     db: AsyncSession,
     user_id: str,
-    rules: TradingRules | None,
-) -> BehavioralAlert | None:
+    rules: Optional[TradingRules],
+) -> Optional[BehavioralAlert]:
     """Detect revenge trading: a loss was closed within the last N minutes.
 
     Revenge trading occurs when a trader opens a new position shortly after
@@ -137,8 +137,8 @@ async def detect_revenge_trading(
 async def detect_overtrading(
     db: AsyncSession,
     user_id: str,
-    rules: TradingRules | None,
-) -> BehavioralAlert | None:
+    rules: Optional[TradingRules],
+) -> Optional[BehavioralAlert]:
     """Detect overtrading: today's trade count exceeds 2x the 30-day daily average.
 
     Args:
@@ -210,8 +210,8 @@ async def detect_overtrading(
 async def detect_weak_session(
     db: AsyncSession,
     user_id: str,
-    rules: TradingRules | None,
-) -> BehavioralAlert | None:
+    rules: Optional[TradingRules],
+) -> Optional[BehavioralAlert]:
     """Detect trading in a session where the user has <35% win rate.
 
     Args:
@@ -278,8 +278,8 @@ async def detect_weak_session(
 
 def detect_bad_rr(
     trade: Trade,
-    rules: TradingRules | None,
-) -> BehavioralAlert | None:
+    rules: Optional[TradingRules],
+) -> Optional[BehavioralAlert]:
     """Detect if the trade has a risk/reward ratio below the user's minimum.
 
     Args:
@@ -324,9 +324,9 @@ def detect_bad_rr(
 
 def detect_excessive_risk(
     trade: Trade,
-    rules: TradingRules | None,
+    rules: Optional[TradingRules],
     account_balance: float = 10000.0,
-) -> BehavioralAlert | None:
+) -> Optional[BehavioralAlert]:
     """Detect if position risk exceeds the user's max risk percentage.
 
     Args:
@@ -372,7 +372,7 @@ async def detect_correlation_stacking(
     db: AsyncSession,
     user_id: str,
     new_trade: Trade,
-) -> BehavioralAlert | None:
+) -> Optional[BehavioralAlert]:
     """Detect correlated open positions in the same direction.
 
     Flags when 2+ open trades are in the same asset class and direction,
@@ -433,7 +433,7 @@ async def detect_correlation_stacking(
 
 async def detect_news_gambling(
     news_events: list[dict],
-) -> BehavioralAlert | None:
+) -> Optional[BehavioralAlert]:
     """Detect trading near high-impact news events.
 
     Args:
@@ -479,7 +479,7 @@ async def detect_news_gambling(
 async def detect_winner_cutting(
     db: AsyncSession,
     user_id: str,
-) -> BehavioralAlert | None:
+) -> Optional[BehavioralAlert]:
     """Detect a pattern of cutting winners short.
 
     Flags when average winner duration is less than 50% of average loser duration,
@@ -542,8 +542,8 @@ async def run_all_checks(
     db: AsyncSession,
     user_id: str,
     trade: Trade,
-    rules: TradingRules | None,
-    news_events: list[dict] | None = None,
+    rules: Optional[TradingRules],
+    news_events: Optional[list[dict]] = None,
     account_balance: float = 10000.0,
 ) -> list[BehavioralAlert]:
     """Run all behavioral pattern detectors on a trade.

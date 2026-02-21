@@ -6,7 +6,7 @@ and per-symbol / per-session breakdowns.
 
 import logging
 from datetime import datetime, timedelta, timezone, date
-from typing import Any
+from typing import Optional, Any
 
 from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -111,7 +111,7 @@ async def get_user_history_summary(
 async def calculate_daily_stats(
     db: AsyncSession,
     user_id: str,
-    target_date: date | None = None,
+    target_date: Optional[date] = None,
 ) -> dict:
     """Calculate aggregated statistics for a specific day.
 
@@ -418,7 +418,7 @@ async def get_session_stats(
 async def save_daily_stats(
     db: AsyncSession,
     user_id: str,
-    target_date: date | None = None,
+    target_date: Optional[date] = None,
 ) -> DailyStats:
     """Calculate and save/update daily stats to the database.
 

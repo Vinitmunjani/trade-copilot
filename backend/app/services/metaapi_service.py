@@ -9,7 +9,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Optional, Any
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +32,7 @@ class ConnectionState:
         self.account_id = account_id
         self.connection = None
         self.account = None
-        self.listener_task: asyncio.Task | None = None
+        self.listener_task: Optional[asyncio.Task] = None
         self.is_connected = False
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 5
@@ -638,7 +638,7 @@ class MetaApiService:
             await db.refresh(trade)
             return trade
 
-    async def simulate_trade_close(self, user_id: str, trade_id: str, exit_price: float) -> Trade | None:
+    async def simulate_trade_close(self, user_id: str, trade_id: str, exit_price: float) -> Optional[Trade]:
         """Simulate closing a trade for testing.
 
         Args:

@@ -1,4 +1,5 @@
 """FastAPI application entry point.
+from typing import Union
 
 Configures the app with lifespan events, CORS, and all routers.
 """

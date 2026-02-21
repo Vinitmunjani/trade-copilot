@@ -1,7 +1,7 @@
 """FastAPI dependencies — DB sessions, current user, Redis."""
 
 import uuid
-from typing import AsyncGenerator
+from typing import Optional, AsyncGenerator
 
 import redis.asyncio as redis
 from fastapi import Depends, HTTPException, status
@@ -18,7 +18,7 @@ settings = get_settings()
 security_scheme = HTTPBearer()
 
 # Global Redis client — initialized at startup
-_redis_client: redis.Redis | None = None
+_redis_client: Optional[redis.Redis] = None
 
 
 async def init_redis() -> redis.Redis:
@@ -57,7 +57,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def get_redis() -> redis.Redis | None:
+async def get_redis() -> Optional[redis.Redis]:
     """Return the global Redis client (may be None if unavailable)."""
     return _redis_client
 

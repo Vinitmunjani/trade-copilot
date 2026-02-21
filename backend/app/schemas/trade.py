@@ -10,46 +10,46 @@ class TradeBase(BaseModel):
     symbol: str
     direction: str  # BUY or SELL
     entry_price: float
-    sl: float | None = None
-    tp: float | None = None
+    sl: Optional[float] = None
+    tp: Optional[float] = None
     lot_size: float
 
 
 class TradeCreate(TradeBase):
     """Schema for creating a trade (simulation)."""
-    external_trade_id: str | None = None
-    open_time: datetime | None = None
+    external_trade_id: Optional[str] = None
+    open_time: Optional[datetime] = None
 
 
 class TradeClose(BaseModel):
     """Schema for closing a trade (simulation)."""
     exit_price: float
-    close_time: datetime | None = None
+    close_time: Optional[datetime] = None
 
 
 class TradeResponse(BaseModel):
     """Full trade response."""
     id: uuid.UUID
     user_id: uuid.UUID
-    external_trade_id: str | None = None
+    external_trade_id: Optional[str] = None
     symbol: str
     direction: str
     entry_price: float
-    exit_price: float | None = None
-    sl: float | None = None
-    tp: float | None = None
+    exit_price: Optional[float] = None
+    sl: Optional[float] = None
+    tp: Optional[float] = None
     lot_size: float
     open_time: datetime
-    close_time: datetime | None = None
-    pnl: float | None = None
-    pnl_r: float | None = None
-    duration_seconds: int | None = None
-    ai_score: int | None = None
-    ai_analysis: dict | None = None
-    ai_review: dict | None = None
-    behavioral_flags: list | None = None
+    close_time: Optional[datetime] = None
+    pnl: Optional[float] = None
+    pnl_r: Optional[float] = None
+    duration_seconds: Optional[int] = None
+    ai_score: Optional[int] = None
+    ai_analysis: Optional[dict] = None
+    ai_review: Optional[dict] = None
+    behavioral_flags: Optional[list] = None
     status: str
-    notes: str | None = None
+    notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -69,10 +69,10 @@ class SimulateTradeRequest(BaseModel):
     symbol: str = Field(default="EURUSD", description="Trading symbol")
     direction: str = Field(default="BUY", description="BUY or SELL")
     entry_price: float = Field(default=1.0850, description="Entry price")
-    sl: float | None = Field(default=1.0820, description="Stop loss")
-    tp: float | None = Field(default=1.0920, description="Take profit")
+    sl: Optional[float] = Field(default=1.0820, description="Stop loss")
+    tp: Optional[float] = Field(default=1.0920, description="Take profit")
     lot_size: float = Field(default=0.1, description="Lot size")
-    close_after_seconds: int | None = Field(
+    close_after_seconds: Optional[int] = Field(
         default=None,
         description="If set, auto-close after N seconds with a random exit price"
     )

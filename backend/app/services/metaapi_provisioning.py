@@ -22,7 +22,7 @@ METAAPI_PROVISIONING_BASE = "https://mt-provisioning-api-v1.agiliumtrade.agilium
 class MetaApiProvisioningError(Exception):
     """Raised when MetaAPI provisioning fails."""
 
-    def __init__(self, message: str, status_code: int | None = None, details: dict | None = None):
+    def __init__(self, message: str, status_code: Optional[int] = None, details: Optional[dict] = None):
         self.message = message
         self.status_code = status_code
         self.details = details or {}

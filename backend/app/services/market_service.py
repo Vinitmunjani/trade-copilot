@@ -8,7 +8,7 @@ Caches results in Redis with 5-minute refresh.
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Optional, Any
 
 import numpy as np
 import redis.asyncio as aioredis
@@ -22,7 +22,7 @@ settings = get_settings()
 CACHE_TTL = 300  # 5 minutes
 
 
-def calculate_ema(prices: list[float], period: int) -> float | None:
+def calculate_ema(prices: list[float], period: int) -> Optional[float]:
     """Calculate Exponential Moving Average for the given period.
 
     Args:
@@ -45,7 +45,7 @@ def calculate_ema(prices: list[float], period: int) -> float | None:
     return round(float(ema), 5)
 
 
-def calculate_atr(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> float | None:
+def calculate_atr(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> Optional[float]:
     """Calculate Average True Range.
 
     Args:
@@ -123,7 +123,7 @@ def identify_key_levels(
     }
 
 
-def determine_trend(price: float, ema20: float | None, ema50: float | None, ema200: float | None) -> dict:
+def determine_trend(price: float, ema20: Optional[float], ema50: Optional[float], ema200: Optional[float]) -> dict:
     """Determine trend direction based on EMA alignment.
 
     Args:
@@ -165,8 +165,8 @@ def determine_trend(price: float, ema20: float | None, ema50: float | None, ema2
 
 async def get_market_context(
     symbol: str,
-    redis_client: aioredis.Redis | None = None,
-    price_data: dict | None = None,
+    redis_client: Optional[aioredis.Redis] = None,
+    price_data: Optional[dict] = None,
 ) -> dict:
     """Get comprehensive market context for a symbol.
 

@@ -50,8 +50,8 @@ async def get_overview(
 
 @router.get("/daily")
 async def get_daily_stats(
-    date_from: date | None = Query(None, description="Start date (YYYY-MM-DD)"),
-    date_to: date | None = Query(None, description="End date (YYYY-MM-DD)"),
+    date_from: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

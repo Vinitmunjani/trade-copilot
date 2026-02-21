@@ -22,11 +22,11 @@ class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
     is_active: bool
-    metaapi_account_id: str | None = None
-    mt_login: str | None = None
-    mt_server: str | None = None
-    mt_platform: str | None = None
-    settings: dict | None = None
+    metaapi_account_id: Optional[str] = None
+    mt_login: Optional[str] = None
+    mt_server: Optional[str] = None
+    mt_platform: Optional[str] = None
+    settings: Optional[dict] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -56,12 +56,12 @@ class TradingAccountConnect(BaseModel):
 class TradingAccountResponse(BaseModel):
     """Schema for trading account connection response."""
     connected: bool
-    account_id: str | None = None
-    login: str | None = None
-    server: str | None = None
-    platform: str | None = None
-    connection_status: str | None = None
-    message: str | None = None
+    account_id: Optional[str] = None
+    login: Optional[str] = None
+    server: Optional[str] = None
+    platform: Optional[str] = None
+    connection_status: Optional[str] = None
+    message: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -69,9 +69,9 @@ class TradingAccountResponse(BaseModel):
 class AccountStatus(BaseModel):
     """Schema for account connection status."""
     connected: bool
-    account_id: str | None = None
-    login: str | None = None
-    server: str | None = None
-    platform: str | None = None
-    connection_status: str | None = None
-    broker: str | None = None
+    account_id: Optional[str] = None
+    login: Optional[str] = None
+    server: Optional[str] = None
+    platform: Optional[str] = None
+    connection_status: Optional[str] = None
+    broker: Optional[str] = None

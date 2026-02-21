@@ -31,7 +31,7 @@ class BehavioralAlert(BaseModel):
     flag: str = Field(..., description="Flag identifier")
     severity: str = Field(..., description="low, medium, high, critical")
     message: str = Field(..., description="Human-readable alert message")
-    details: dict | None = None
+    details: Optional[dict] = None
 
 
 class WeeklyReport(BaseModel):

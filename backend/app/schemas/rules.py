@@ -1,4 +1,5 @@
 """Pydantic schemas for trading rules."""
+from typing import Optional, Union
 
 import uuid
 from datetime import datetime
@@ -7,15 +8,15 @@ from pydantic import BaseModel, Field
 
 class TradingRulesUpdate(BaseModel):
     """Schema for updating trading rules."""
-    max_risk_percent: float | None = Field(None, ge=0.1, le=10.0)
-    min_risk_reward: float | None = Field(None, ge=0.5, le=10.0)
-    max_trades_per_day: int | None = Field(None, ge=1, le=50)
-    max_daily_loss_percent: float | None = Field(None, ge=1.0, le=20.0)
-    max_concurrent_trades: int | None = Field(None, ge=1, le=20)
-    blocked_sessions: list[str] | None = None
-    allowed_symbols: list[str] | None = None
-    custom_checklist: list[str] | None = None
-    min_time_between_trades: int | None = Field(None, ge=0, le=120)
+    max_risk_percent: Optional[float] = Field(None, ge=0.1, le=10.0)
+    min_risk_reward: Optional[float] = Field(None, ge=0.5, le=10.0)
+    max_trades_per_day: Optional[int] = Field(None, ge=1, le=50)
+    max_daily_loss_percent: Optional[float] = Field(None, ge=1.0, le=20.0)
+    max_concurrent_trades: Optional[int] = Field(None, ge=1, le=20)
+    blocked_sessions: Optional[list[str]] = None
+    allowed_symbols: Optional[list[str]] = None
+    custom_checklist: Optional[list[str]] = None
+    min_time_between_trades: Optional[int] = Field(None, ge=0, le=120)
 
 
 class TradingRulesResponse(BaseModel):
@@ -42,7 +43,7 @@ class RuleAdherenceItem(BaseModel):
     rule: str
     description: str
     adhered: bool
-    details: str | None = None
+    details: Optional[str] = None
 
 
 class RuleAdherenceResponse(BaseModel):

@@ -6,7 +6,7 @@ high-impact events that could affect open positions.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Optional, Any
 
 import httpx
 import redis.asyncio as aioredis
@@ -22,7 +22,7 @@ FOREX_FACTORY_FALLBACK_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek
 
 
 async def fetch_economic_calendar(
-    redis_client: aioredis.Redis | None = None,
+    redis_client: Optional[aioredis.Redis] = None,
 ) -> list[dict]:
     """Fetch this week's economic calendar events.
 
@@ -89,9 +89,9 @@ async def fetch_economic_calendar(
 
 
 async def get_upcoming_high_impact_events(
-    symbol: str | None = None,
+    symbol: Optional[str] = None,
     within_minutes: int = 60,
-    redis_client: aioredis.Redis | None = None,
+    redis_client: Optional[aioredis.Redis] = None,
 ) -> list[dict]:
     """Get high-impact economic events happening within the specified time window.
 
@@ -154,7 +154,7 @@ async def get_upcoming_high_impact_events(
 
 async def get_news_summary(
     symbol: str,
-    redis_client: aioredis.Redis | None = None,
+    redis_client: Optional[aioredis.Redis] = None,
 ) -> dict:
     """Get a summary of news context for a symbol.
 

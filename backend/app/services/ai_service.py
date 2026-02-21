@@ -1,4 +1,5 @@
 """AI analysis service.
+from typing import Optional, Union
 
 Provides pre-trade scoring, post-trade review, and weekly report generation
 using Claude (deep analysis) and GPT-4o-mini (quick scoring).
@@ -6,7 +7,7 @@ using Claude (deep analysis) and GPT-4o-mini (quick scoring).
 
 import json
 import logging
-from typing import Any
+from typing import Optional, Any
 
 import anthropic
 import openai
@@ -20,9 +21,9 @@ settings = get_settings()
 
 def _build_pre_trade_prompt(
     trade: dict,
-    market_context: dict | None,
-    user_history: dict | None,
-    behavioral_flags: list[dict] | None,
+    market_context: Optional[dict],
+    user_history: Optional[dict],
+    behavioral_flags: Optional[list[dict]],
 ) -> str:
     """Build a comprehensive prompt for pre-trade AI analysis.
 
@@ -114,7 +115,7 @@ Respond ONLY with valid JSON (no markdown, no code fences):
 Be honest and direct. A mediocre trade should get a mediocre score. Don't sugarcoat."""
 
 
-def _build_post_trade_prompt(trade: dict, pre_score: dict | None) -> str:
+def _build_post_trade_prompt(trade: dict, pre_score: Optional[dict]) -> str:
     """Build prompt for post-trade AI review.
 
     Args:
@@ -253,9 +254,9 @@ def _parse_json_response(text: str) -> dict:
 
 async def analyze_pre_trade(
     trade: dict,
-    market_context: dict | None = None,
-    user_history: dict | None = None,
-    behavioral_flags: list[dict] | None = None,
+    market_context: Optional[dict] = None,
+    user_history: Optional[dict] = None,
+    behavioral_flags: Optional[list[dict]] = None,
 ) -> TradeScore:
     """Run pre-trade AI analysis and return a quality score.
 
@@ -314,7 +315,7 @@ async def analyze_pre_trade(
 
 async def analyze_post_trade(
     trade: dict,
-    pre_score: dict | None = None,
+    pre_score: Optional[dict] = None,
 ) -> TradeReview:
     """Run post-trade AI review using Claude for deeper analysis.
 
