@@ -15,6 +15,9 @@ RUN pip3 install Flask requests
 
 RUN mkdir -p /mt5 /app/scripts
 
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 EXPOSE 5000
 
-CMD ["python3", "-c", "from flask import Flask; app = Flask(__name__); @app.route('/health'); def health(): return {'status': 'ok'}; app.run(host='0.0.0.0', port=5000)"]
+ENTRYPOINT ["/app/entrypoint.sh"]
