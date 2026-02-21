@@ -6,7 +6,7 @@ and broadcasts trade events, AI scores, and behavioral alerts.
 
 import json
 import logging
-from typing import Any
+from typing import Dict, List,  Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
@@ -24,7 +24,7 @@ class WebSocketManager:
     """
 
     def __init__(self):
-        self._connections: dict[str, list[WebSocket]] = {}
+        self._connections: Dict[str, List[WebSocket]] = {}
 
     async def connect(self, user_id: str, websocket: WebSocket) -> None:
         """Accept and register a new WebSocket connection.

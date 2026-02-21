@@ -1,7 +1,7 @@
 """JWT token creation/verification and password hashing."""
 
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Optional, Dict
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -23,7 +23,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
+def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token.
 
     Args:
@@ -41,7 +41,7 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def decode_access_token(token: str) -> dict[str, Any] | None:
+def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     """Decode and verify a JWT access token.
 
     Args:
