@@ -2,7 +2,7 @@
 from typing import Optional, Dict, Any
 
 import uuid
-from datetime import date, datetime
+from datetime import date as DateType, datetime
 
 from sqlalchemy import Date, DateTime, Float, Integer, JSON, ForeignKey, UniqueConstraint
 from app.models.compat import PortableUUID
@@ -25,7 +25,7 @@ class DailyStats(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         PortableUUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    date: Mapped[DateType] = mapped_column(Date, nullable=False, index=True)
 
     # Aggregated metrics
     total_trades: Mapped[int] = mapped_column(Integer, default=0)
