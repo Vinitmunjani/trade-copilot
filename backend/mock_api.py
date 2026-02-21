@@ -1,9 +1,10 @@
 """Minimal mock API for MVP testing - bypasses all import/compatibility issues."""
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uuid
 from datetime import datetime
+import json
 
 app = FastAPI(title="Trade Co-Pilot Mock API")
 
@@ -29,6 +30,9 @@ class UserCreate(BaseModel):
     email: str
     password: str
     confirm_password: str
+    
+    class Config:
+        extra = "allow"  # Allow extra fields
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -56,32 +60,49 @@ async def health():
     """Health check."""
     return {"status": "healthy", "redis": "connected", "websocket_connections": 0}
 
-@app.post("/api/v1/auth/register", response_model=TokenResponse)
-async def register(user: UserCreate):
-    """Register a new user."""
-    if user.password != user.confirm_password:
+@app.post("/api/v1/auth/register")
+async def register(request: Request):
+    """Register a new user - accept raw JSON to avoid Pydantic issues."""
+    try:
+        body = await request.json()
+    except:
+        raise HTTPException(status_code=422, detail="Invalid JSON")
+    
+    email = body.get("email")
+    password = body.get("password")
+    confirm_password = body.get("confirm_password")
+    
+    # Validate
+    if not email or not password or not confirm_password:
+        raise HTTPException(status_code=422, detail="Missing required fields")
+    
+    if password != confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
     
-    if user.email in users_db:
+    if email in users_db:
         raise HTTPException(status_code=400, detail="User already exists")
     
     # Create user
     user_id = str(uuid.uuid4())
-    users_db[user.email] = {
+    users_db[email] = {
         "id": user_id,
-        "email": user.email,
-        "password": user.password,
+        "email": email,
+        "password": password,
     }
     
-    # Return mock token
+    # Return token
     return {
         "access_token": f"mock_token_{user_id}",
         "token_type": "bearer",
     }
 
-@app.post("/api/v1/auth/login", response_model=TokenResponse)
-async def login(email: str, password: str):
+@app.post("/api/v1/auth/login")
+async def login(request: Request):
     """Login user."""
+    body = await request.json()
+    email = body.get("email")
+    password = body.get("password")
+    
     if email not in users_db:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
@@ -94,38 +115,48 @@ async def login(email: str, password: str):
         "token_type": "bearer",
     }
 
-@app.post("/api/v1/trades", response_model=TradeResponse)
-async def create_trade(trade: TradeCreate):
+@app.post("/api/v1/trades")
+async def create_trade(request: Request):
     """Create a trade."""
+    body = await request.json()
+    
     trade_id = str(uuid.uuid4())
+    symbol = body.get("symbol", "EURUSD")
+    direction = body.get("direction", "BUY")
+    entry_price = float(body.get("entry_price", 1.0))
+    exit_price = body.get("exit_price")
+    lot_size = float(body.get("lot_size", 1.0))
+    
+    if exit_price:
+        exit_price = float(exit_price)
     
     # Mock P&L calculation
     pnl = 0.0
-    if trade.exit_price:
-        if trade.direction == "BUY":
-            pnl = (trade.exit_price - trade.entry_price) * trade.lot_size
+    if exit_price:
+        if direction == "BUY":
+            pnl = (exit_price - entry_price) * lot_size
         else:
-            pnl = (trade.entry_price - trade.exit_price) * trade.lot_size
+            pnl = (entry_price - exit_price) * lot_size
     
     trades_db[trade_id] = {
         "id": trade_id,
         "user_id": "mock_user",
-        "symbol": trade.symbol,
-        "direction": trade.direction,
-        "entry_price": trade.entry_price,
-        "exit_price": trade.exit_price,
-        "lot_size": trade.lot_size,
+        "symbol": symbol,
+        "direction": direction,
+        "entry_price": entry_price,
+        "exit_price": exit_price,
+        "lot_size": lot_size,
         "pnl": pnl,
     }
     
     return trades_db[trade_id]
 
-@app.get("/api/v1/trades", response_model=list)
+@app.get("/api/v1/trades")
 async def get_trades():
     """Get all trades."""
     return list(trades_db.values())
 
-@app.get("/api/v1/stats", response_model=dict)
+@app.get("/api/v1/stats")
 async def get_stats():
     """Get trading stats."""
     trades = list(trades_db.values())
