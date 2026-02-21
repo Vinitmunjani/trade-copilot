@@ -6,7 +6,7 @@ and per-symbol / per-session breakdowns.
 
 import logging
 from datetime import datetime, timedelta, timezone, date
-from typing import Optional, Any
+from typing import List, Dict,  Optional, Any
 
 from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -173,7 +173,7 @@ async def calculate_daily_stats(
     r_values = [t.pnl_r for t in trades if t.pnl_r is not None]
 
     # Session breakdown
-    session_data: dict[str, dict] = {}
+    session_data: Dict[str, dict] = {}
     for t in trades:
         session = get_current_session(t.open_time)
         if session not in session_data:
@@ -190,7 +190,7 @@ async def calculate_daily_stats(
         session_data[s]["pnl"] = round(session_data[s]["pnl"], 2)
 
     # Symbol breakdown
-    symbol_data: dict[str, dict] = {}
+    symbol_data: Dict[str, dict] = {}
     for t in trades:
         sym = t.symbol
         if sym not in symbol_data:
@@ -379,7 +379,7 @@ async def get_session_stats(
     )
     trades = result.scalars().all()
 
-    sessions: dict[str, dict] = {
+    sessions: Dict[str, dict] = {
         "asian": {"trades": 0, "wins": 0, "pnl": 0, "r_total": 0},
         "london": {"trades": 0, "wins": 0, "pnl": 0, "r_total": 0},
         "new_york": {"trades": 0, "wins": 0, "pnl": 0, "r_total": 0},

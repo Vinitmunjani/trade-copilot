@@ -91,7 +91,7 @@ class WebSocketManager:
         for user_id in list(self._connections.keys()):
             await self.broadcast_to_user(user_id, data)
 
-    def get_connected_users(self) -> list[str]:
+    def get_connected_users(self) -> List[str]:
         """Return list of user IDs with active WebSocket connections.
 
         Returns:

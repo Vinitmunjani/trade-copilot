@@ -9,7 +9,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Optional, Any
+from typing import List, Dict,  Optional, Any
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,7 +46,7 @@ class MetaApiService:
     """
 
     def __init__(self):
-        self._connections: dict[str, ConnectionState] = {}
+        self._connections: Dict[str, ConnectionState] = {}
         self._ws_manager = None  # Set externally
         self._api = None
 
@@ -219,7 +219,7 @@ class MetaApiService:
         try:
             # The MetaAPI SDK uses synchronization listeners
             # We poll for position changes as a robust fallback
-            known_positions: dict[str, dict] = {}
+            known_positions: Dict[str, dict] = {}
 
             while True:
                 try:
@@ -320,7 +320,7 @@ class MetaApiService:
                 if trade.sl and trade.tp and trade.entry_price:
                     risk = abs(trade.entry_price - trade.sl)
                     reward = abs(trade.tp - trade.entry_price)
-                    trade_dict["rr_ratio"] = round(reward / risk, 2) if risk > 0 else None
+                    trade_Dict["rr_ratio"] = round(reward / risk, 2) if risk > 0 else None
 
                 score = await analyze_pre_trade(
                     trade_dict, market, history,
@@ -600,7 +600,7 @@ class MetaApiService:
             if trade.sl and trade.tp and trade.entry_price:
                 risk = abs(trade.entry_price - trade.sl)
                 reward = abs(trade.tp - trade.entry_price)
-                trade_dict["rr_ratio"] = round(reward / risk, 2) if risk > 0 else None
+                trade_Dict["rr_ratio"] = round(reward / risk, 2) if risk > 0 else None
 
             score = await analyze_pre_trade(
                 trade_dict, market, history,

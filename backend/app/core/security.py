@@ -1,7 +1,7 @@
 """JWT token creation/verification and password hashing."""
 
 from datetime import datetime, timedelta
-from typing import Any, Optional, Dict
+from typing import List, Dict,  Any, Optional, Dict
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext

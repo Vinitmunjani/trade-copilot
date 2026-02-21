@@ -80,7 +80,7 @@ async def rescore_trade(
         if trade.sl and trade.tp and trade.entry_price:
             risk = abs(trade.entry_price - trade.sl)
             reward = abs(trade.tp - trade.entry_price)
-            trade_dict["rr_ratio"] = round(reward / risk, 2) if risk > 0 else None
+            trade_Dict["rr_ratio"] = round(reward / risk, 2) if risk > 0 else None
 
         score = await analyze_pre_trade(
             trade_dict, market, history,
@@ -160,7 +160,7 @@ async def get_patterns(
         )
 
     # Aggregate behavioral flags across all trades
-    flag_counter: dict[str, dict] = {}
+    flag_counter: Dict[str, dict] = {}
     for t in trades:
         if not t.behavioral_flags:
             continue
@@ -183,7 +183,7 @@ async def get_patterns(
             flag_counter[flag_name]["count"] += 1
 
     # Analyze win rate trends
-    patterns: list[PatternAnalysis] = []
+    patterns: List[PatternAnalysis] = []
 
     # Behavioral flag patterns
     flag_descriptions = {
@@ -307,7 +307,7 @@ async def get_readiness(
 
     # Calculate readiness components
     score = 100
-    factors: list[dict] = []
+    factors: List[dict] = []
 
     # 1. Daily trade count check
     max_trades = rules.max_trades_per_day if rules else 5

@@ -8,7 +8,7 @@ Caches results in Redis with 5-minute refresh.
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Any
+from typing import List, Dict,  Optional, Any
 
 import numpy as np
 import redis.asyncio as aioredis
@@ -22,7 +22,7 @@ settings = get_settings()
 CACHE_TTL = 300  # 5 minutes
 
 
-def calculate_ema(prices: list[float], period: int) -> Optional[float]:
+def calculate_ema(prices: List[float], period: int) -> Optional[float]:
     """Calculate Exponential Moving Average for the given period.
 
     Args:
@@ -45,7 +45,7 @@ def calculate_ema(prices: list[float], period: int) -> Optional[float]:
     return round(float(ema), 5)
 
 
-def calculate_atr(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> Optional[float]:
+def calculate_atr(highs: List[float], lows: List[float], closes: List[float], period: int = 14) -> Optional[float]:
     """Calculate Average True Range.
 
     Args:
@@ -78,7 +78,7 @@ def calculate_atr(highs: list[float], lows: list[float], closes: list[float], pe
 
 
 def identify_key_levels(
-    highs: list[float], lows: list[float], closes: list[float], current_price: float
+    highs: List[float], lows: List[float], closes: List[float], current_price: float
 ) -> dict:
     """Identify key support and resistance levels from recent price action.
 

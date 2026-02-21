@@ -1,5 +1,5 @@
 """Pydantic schemas for trading rules."""
-from typing import Optional, Union
+from typing import List, Dict,  Optional, Union
 
 import uuid
 from datetime import datetime
@@ -13,9 +13,9 @@ class TradingRulesUpdate(BaseModel):
     max_trades_per_day: Optional[int] = Field(None, ge=1, le=50)
     max_daily_loss_percent: Optional[float] = Field(None, ge=1.0, le=20.0)
     max_concurrent_trades: Optional[int] = Field(None, ge=1, le=20)
-    blocked_sessions: Optional[list[str]] = None
-    allowed_symbols: Optional[list[str]] = None
-    custom_checklist: Optional[list[str]] = None
+    blocked_sessions: Optional[List[str]] = None
+    allowed_symbols: Optional[List[str]] = None
+    custom_checklist: Optional[List[str]] = None
     min_time_between_trades: Optional[int] = Field(None, ge=0, le=120)
 
 
@@ -28,9 +28,9 @@ class TradingRulesResponse(BaseModel):
     max_trades_per_day: int
     max_daily_loss_percent: float
     max_concurrent_trades: int
-    blocked_sessions: list[str] | None
-    allowed_symbols: list[str] | None
-    custom_checklist: list[str] | None
+    blocked_sessions: List[str]
+    allowed_symbols: List[str]
+    custom_checklist: List[str]
     min_time_between_trades: int
     created_at: datetime
     updated_at: datetime
@@ -49,6 +49,6 @@ class RuleAdherenceItem(BaseModel):
 class RuleAdherenceResponse(BaseModel):
     """Full rule adherence report."""
     overall_score: float = Field(..., description="0-100 adherence score")
-    items: list[RuleAdherenceItem]
+    items: List[RuleAdherenceItem]
     period_start: datetime
     period_end: datetime

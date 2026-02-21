@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import List, Dict,  Optional, Union
 """Trade routes — list, filter, and retrieve trades."""
 
 import uuid
@@ -81,7 +81,7 @@ async def list_trades(
     )
 
 
-@router.get("/open", response_model=list[TradeResponse])
+@router.get("/open", response_model=List[TradeResponse])
 async def get_open_trades(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

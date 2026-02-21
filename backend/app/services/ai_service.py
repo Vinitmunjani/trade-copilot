@@ -1,5 +1,5 @@
 """AI analysis service.
-from typing import Optional, Union
+from typing import List, Dict,  Optional, Union
 
 Provides pre-trade scoring, post-trade review, and weekly report generation
 using Claude (deep analysis) and GPT-4o-mini (quick scoring).
@@ -7,7 +7,7 @@ using Claude (deep analysis) and GPT-4o-mini (quick scoring).
 
 import json
 import logging
-from typing import Optional, Any
+from typing import List, Dict,  Optional, Any
 
 import anthropic
 import openai
@@ -23,7 +23,7 @@ def _build_pre_trade_prompt(
     trade: dict,
     market_context: Optional[dict],
     user_history: Optional[dict],
-    behavioral_flags: Optional[list[dict]],
+    behavioral_flags: Optional[List[dict]],
 ) -> str:
     """Build a comprehensive prompt for pre-trade AI analysis.
 
@@ -169,7 +169,7 @@ Focus on process over outcome. A losing trade with good process should score hig
 
 
 def _build_weekly_report_prompt(
-    trades: list[dict],
+    trades: List[dict],
     stats: dict,
 ) -> str:
     """Build prompt for weekly AI performance report.
@@ -256,7 +256,7 @@ async def analyze_pre_trade(
     trade: dict,
     market_context: Optional[dict] = None,
     user_history: Optional[dict] = None,
-    behavioral_flags: Optional[list[dict]] = None,
+    behavioral_flags: Optional[List[dict]] = None,
 ) -> TradeScore:
     """Run pre-trade AI analysis and return a quality score.
 
@@ -365,7 +365,7 @@ async def analyze_post_trade(
 
 async def generate_weekly_report(
     user_id: str,
-    trades: list[dict],
+    trades: List[dict],
     stats: dict,
 ) -> WeeklyReport:
     """Generate a comprehensive weekly performance report using Claude.

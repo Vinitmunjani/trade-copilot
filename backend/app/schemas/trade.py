@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import List, Dict,  Optional, Union
 """Pydantic schemas for trade operations."""
 
 import uuid
@@ -59,7 +59,7 @@ class TradeResponse(BaseModel):
 
 class TradeListResponse(BaseModel):
     """Paginated trade list."""
-    trades: list[TradeResponse]
+    trades: List[TradeResponse]
     total: int
     page: int
     per_page: int

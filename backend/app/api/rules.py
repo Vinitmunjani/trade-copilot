@@ -122,7 +122,7 @@ async def get_rule_adherence(
             period_end=period_end,
         )
 
-    items: list[RuleAdherenceItem] = []
+    items: List[RuleAdherenceItem] = []
 
     # Check max risk percent — based on behavioral flags
     risk_violations = 0
@@ -261,7 +261,7 @@ async def get_checklist(
 
 @router.put("/checklist")
 async def update_checklist(
-    checklist: list[str],
+    checklist: List[str],
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

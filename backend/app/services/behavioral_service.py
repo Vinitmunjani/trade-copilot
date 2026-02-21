@@ -12,7 +12,7 @@ Detects trading psychology red flags using rule-based logic:
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
+from typing import List, Dict,  Optional, Any
 
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +63,7 @@ def get_current_session(dt: Optional[datetime] = None) -> str:
     return "off_hours"
 
 
-def get_asset_class(symbol: str) -> list[str]:
+def get_asset_class(symbol: str) -> List[str]:
     """Return which asset classes a symbol belongs to.
 
     Args:
@@ -432,7 +432,7 @@ async def detect_correlation_stacking(
 
 
 async def detect_news_gambling(
-    news_events: list[dict],
+    news_events: List[dict],
 ) -> Optional[BehavioralAlert]:
     """Detect trading near high-impact news events.
 
@@ -543,9 +543,9 @@ async def run_all_checks(
     user_id: str,
     trade: Trade,
     rules: Optional[TradingRules],
-    news_events: Optional[list[dict]] = None,
+    news_events: Optional[List[dict]] = None,
     account_balance: float = 10000.0,
-) -> list[BehavioralAlert]:
+) -> List[BehavioralAlert]:
     """Run all behavioral pattern detectors on a trade.
 
     Args:
@@ -559,7 +559,7 @@ async def run_all_checks(
     Returns:
         List of BehavioralAlert instances for all detected issues.
     """
-    alerts: list[BehavioralAlert] = []
+    alerts: List[BehavioralAlert] = []
 
     # Run all async checks
     revenge = await detect_revenge_trading(db, user_id, rules)
