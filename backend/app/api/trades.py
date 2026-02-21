@@ -1,3 +1,4 @@
+from typing import Optional, Union
 """Trade routes — list, filter, and retrieve trades."""
 
 import uuid

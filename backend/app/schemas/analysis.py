@@ -1,3 +1,4 @@
+from typing import Optional, Union
 """Pydantic schemas for AI analysis responses."""
 
 from pydantic import BaseModel, Field

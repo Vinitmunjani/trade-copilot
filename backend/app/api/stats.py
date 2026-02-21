@@ -1,3 +1,4 @@
+from typing import Optional, Union
 """Statistics routes — overview, daily, weekly, symbol, and session performance."""
 
 import logging

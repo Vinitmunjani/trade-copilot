@@ -1,3 +1,4 @@
+from typing import Optional, Union
 """Pydantic schemas for trade operations."""
 
 import uuid
