@@ -10,8 +10,18 @@ export function AccountStatus() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Always fetch from backend on mount to sync state
+    console.log("📲 AccountStatus mounted, fetching account info...");
     setLoading(true);
-    fetchAccountInfo().finally(() => setLoading(false));
+    fetchAccountInfo()
+      .then(() => {
+        console.log("✅ Account info fetched");
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("❌ Failed to fetch account info:", err);
+        setLoading(false);
+      });
   }, [fetchAccountInfo]);
 
   if (loading) {

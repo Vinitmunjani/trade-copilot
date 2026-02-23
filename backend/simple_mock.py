@@ -2,6 +2,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
+import json
+import os
 from mt5_connector import MT5Connector
 
 app = FastAPI(title="Trade Co-Pilot")
@@ -15,11 +17,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Persistent storage
+# Persistent storage files
+ACCOUNTS_FILE = "/tmp/accounts.json"
+USERS_FILE = "/tmp/users.json"
+SESSIONS_FILE = "/tmp/sessions.json"
+TRADES_FILE = "/tmp/trades.json"
+
+# In-memory with persistence
 users = {}
 sessions = {}
 accounts = {}
 trades = {}
+
+def load_from_file(filepath: str, default=None):
+    """Load data from JSON file."""
+    try:
+        if os.path.exists(filepath):
+            with open(filepath, 'r') as f:
+                return json.load(f)
+    except:
+        pass
+    return default or {}
+
+def save_to_file(filepath: str, data: dict):
+    """Save data to JSON file."""
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"Error saving to {filepath}: {e}")
+
+# Load persistent data
+users = load_from_file(USERS_FILE, {})
+sessions = load_from_file(SESSIONS_FILE, {})
+accounts = load_from_file(ACCOUNTS_FILE, {})
+trades = load_from_file(TRADES_FILE, {})
 
 def get_or_create_session(token: str):
     """Get or create session from token."""
@@ -48,6 +80,9 @@ async def register(email: str = None, password: str = None, confirm_password: st
     users[email] = {"id": user_id, "password": password, "email": email}
     sessions[token] = {"user_id": user_id, "email": email}
     
+    save_to_file(USERS_FILE, users)
+    save_to_file(SESSIONS_FILE, sessions)
+    
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -63,6 +98,8 @@ async def login(email: str = None, password: str = None):
     user_id = users[email]["id"]
     token = f"token_{user_id}_{uuid.uuid4().hex[:8]}"
     sessions[token] = {"user_id": user_id, "email": email}
+    
+    save_to_file(SESSIONS_FILE, sessions)
     
     return {
         "access_token": token,
@@ -103,20 +140,23 @@ async def connect_account(broker: str = None, login: str = None, password: str =
     if not broker or not login or not password:
         return {"detail": "Missing broker, login, or password"}, 422
     
+    # Normalize broker name
+    broker_normalized = broker.lower()
+    
     # REAL MT5 CONNECTION
     result = MT5Connector.connect_account(broker, login, password, server or "Demo")
     
     if result["status"] == "failed":
         return {"detail": result.get("error", "Failed to connect to MT5")}, 400
     
-    # Create account record
+    # Create account record with ORIGINAL broker name (not container response)
     account_id = str(uuid.uuid4())
     mt5_port = MT5Connector.get_port_for_broker(broker)
     
     accounts[account_id] = {
         "id": account_id,
         "user_id": session["user_id"],
-        "broker": broker,
+        "broker": broker,  # Store original broker name (Exness, ICMarkets, XM)
         "login": login,
         "server": server or "Demo",
         "status": "connected",
@@ -124,10 +164,13 @@ async def connect_account(broker: str = None, login: str = None, password: str =
         "account_info": result.get("account_info", {})
     }
     
-    # IMPORTANT: Return the ORIGINAL broker param, not what came from MT5 container
+    # Persist to file
+    save_to_file(ACCOUNTS_FILE, accounts)
+    
+    # Return response with correct broker name
     return {
         "id": account_id,
-        "broker": broker,  # Use the broker parameter, not the container response
+        "broker": broker,  # Return original broker name
         "login": login,
         "server": server or "Demo",
         "status": "connected",
@@ -157,6 +200,7 @@ async def disconnect_account(account_id: str, authorization: str = None):
     
     if account_id in accounts:
         del accounts[account_id]
+        save_to_file(ACCOUNTS_FILE, accounts)
         return {"status": "disconnected"}
     return {"detail": "Account not found"}, 404
 
@@ -188,6 +232,8 @@ async def create_trade(symbol: str = "EURUSD", direction: str = "BUY", entry_pri
         "lot_size": lot_size,
         "pnl": pnl
     }
+    
+    save_to_file(TRADES_FILE, trades)
     return trades[trade_id]
 
 @app.get("/api/v1/trades")
@@ -222,6 +268,7 @@ async def update_trade(trade_id: str, exit_price: float = None, authorization: s
         else:
             trade["pnl"] = (trade["entry_price"] - exit_price) * trade["lot_size"]
     
+    save_to_file(TRADES_FILE, trades)
     return trades[trade_id]
 
 @app.delete("/api/v1/trades/{trade_id}")
@@ -232,6 +279,7 @@ async def delete_trade(trade_id: str, authorization: str = None):
     
     if trade_id in trades:
         del trades[trade_id]
+        save_to_file(TRADES_FILE, trades)
         return {"status": "deleted"}
     return {"detail": "Trade not found"}, 404
 

@@ -89,12 +89,13 @@ export const useSettingsStore = create<SettingsState>()(
           
           console.log("📡 Backend response:", data);
           
+          // Map broker field correctly - use data.broker (the original broker name from backend)
           const account: TradingAccount = {
             connected: data.status === "connected",
             account_id: data.id || null,
             login: data.login || params.login,
             server: data.server || params.server,
-            platform: data.broker || params.platform,
+            platform: data.broker || params.platform,  // Use broker field from response
             connection_status: data.status || "disconnected",
             message: data.status === "connected" ? "Connected" : data.error || "Connection failed",
           };
@@ -128,17 +129,20 @@ export const useSettingsStore = create<SettingsState>()(
             brokerConnected: false,
             tradingAccount: null,
           });
+          // Clear persisted state on disconnect
+          localStorage.removeItem("settings-store");
         } catch {
           set({
             brokerConnected: false,
             tradingAccount: null,
           });
+          localStorage.removeItem("settings-store");
         }
       },
 
       fetchAccountInfo: async () => {
         try {
-          console.log("📥 Fetching account info...");
+          console.log("📥 Fetching account info from backend...");
           const { data } = await api.get("/account/list");
           console.log("📦 Account list response:", data);
           
@@ -149,7 +153,7 @@ export const useSettingsStore = create<SettingsState>()(
               account_id: account.id || null,
               login: account.login || null,
               server: account.server || null,
-              platform: account.broker || null,
+              platform: account.broker || null,  // Use broker field from backend
               connection_status: account.status || "disconnected",
               message: "Connected",
             };
@@ -161,7 +165,7 @@ export const useSettingsStore = create<SettingsState>()(
               tradingAccount,
             });
           } else {
-            console.log("⚠️ No accounts found");
+            console.log("⚠️ No accounts found in backend");
             set({
               brokerConnected: false,
               tradingAccount: null,
