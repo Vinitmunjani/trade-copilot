@@ -5,10 +5,9 @@ ENV DISPLAY=:99
 ENV WINEARCH=win64
 ENV WINEPREFIX=/root/.wine
 
-# Install dependencies
+# Install dependencies (wine64 only, no 32-bit support needed for x86_64)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wine64 \
-    wine32 \
     wine-binfmt \
     xvfb \
     xdotool \
@@ -19,18 +18,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     fonts-liberation \
     fontconfig \
-    xfonts-100dpi xfonts-75dpi xfonts-base xfonts-encodings \
     && rm -rf /var/lib/apt/lists/*
 
-# Setup Wine
-RUN dpkg --add-architecture i386 && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends wine32 && \
-    rm -rf /var/lib/apt/lists/*
-
-# Setup Python
 WORKDIR /app
 
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
