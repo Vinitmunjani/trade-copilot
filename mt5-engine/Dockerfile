@@ -35,9 +35,6 @@ COPY ea/TradeMonitor.mq5 /app/TradeMonitor.mq5
 
 RUN chmod +x /app/download_mt5.sh /app/setup_mt5.sh /app/entrypoint.sh
 
-# Copy terminal.exe if present in build context
-COPY terminal.exe /app/terminal/terminal.exe 2>/dev/null || echo "Terminal will be downloaded at runtime"
-
 # Create Wine and terminal directories
 RUN mkdir -p /root/.wine/drive_c/Program\ Files/MT5 /app/terminal /tmp
 
