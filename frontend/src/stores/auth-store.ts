@@ -10,7 +10,7 @@ interface AuthState {
   isAuthenticated: boolean;
 
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, confirm_password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, confirm_password: string) => Promise<void>;
   logout: () => void;
   loadFromStorage: () => void;
   clearError: () => void;
@@ -45,9 +45,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  register: async (email: string, password: string, confirm_password: string) => {
+  register: async (name: string, email: string, password: string, confirm_password: string) => {
     set({ isLoading: true, error: null });
     try {
+      // Backend only needs email, password, confirm_password
       const response = await api.post<any>("/auth/register", null, {
         params: { email, password, confirm_password },
       });
