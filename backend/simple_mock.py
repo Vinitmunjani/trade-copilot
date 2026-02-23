@@ -1,6 +1,6 @@
 from fastapi.responses import JSONResponse
 """Trade Co-Pilot Backend - MT5 Terminal Integration."""
-from fastapi import FastAPI
+from fastapi import Header, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
 import json
@@ -105,7 +105,7 @@ async def login(email: str = None, password: str = None):
     }
 
 @app.get("/api/v1/auth/me")
-async def get_me(authorization: str = None):
+async def get_me(authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -123,7 +123,7 @@ async def get_me(authorization: str = None):
 # ============ ACCOUNT ENDPOINTS ============
 
 @app.post("/api/v1/account/connect")
-async def connect_account(broker: str = None, login: str = None, password: str = None, server: str = None, authorization: str = None):
+async def connect_account(broker: str = None, login: str = None, password: str = None, server: str = None, authorization: str = Header(None)):
     """Connect to MT5 account - launches terminal and monitors for trades."""
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
@@ -175,7 +175,7 @@ async def connect_account(broker: str = None, login: str = None, password: str =
     }
 
 @app.get("/api/v1/account/list")
-async def list_accounts(authorization: str = None):
+async def list_accounts(authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -189,7 +189,7 @@ async def list_accounts(authorization: str = None):
     return user_accounts
 
 @app.delete("/api/v1/account/{account_id}")
-async def disconnect_account(account_id: str, authorization: str = None):
+async def disconnect_account(account_id: str, authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -206,7 +206,7 @@ async def disconnect_account(account_id: str, authorization: str = None):
 # ============ TRADES ENDPOINTS ============
 
 @app.get("/api/v1/trades")
-async def get_trades(authorization: str = None):
+async def get_trades(authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -229,7 +229,7 @@ async def get_trades(authorization: str = None):
     return all_trades
 
 @app.post("/api/v1/trades")
-async def create_trade(symbol: str = None, direction: str = None, entry_price: float = None, exit_price: float = None, lot_size: float = None, authorization: str = None):
+async def create_trade(symbol: str = None, direction: str = None, entry_price: float = None, exit_price: float = None, lot_size: float = None, authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -254,7 +254,7 @@ async def create_trade(symbol: str = None, direction: str = None, entry_price: f
     return trades[trade_id]
 
 @app.put("/api/v1/trades/{trade_id}")
-async def update_trade(trade_id: str, exit_price: float = None, authorization: str = None):
+async def update_trade(trade_id: str, exit_price: float = None, authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -269,7 +269,7 @@ async def update_trade(trade_id: str, exit_price: float = None, authorization: s
     return trades[trade_id]
 
 @app.delete("/api/v1/trades/{trade_id}")
-async def delete_trade(trade_id: str, authorization: str = None):
+async def delete_trade(trade_id: str, authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -282,7 +282,7 @@ async def delete_trade(trade_id: str, authorization: str = None):
 # ============ STATS ENDPOINTS ============
 
 @app.get("/api/v1/stats")
-async def get_stats(authorization: str = None):
+async def get_stats(authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -305,7 +305,7 @@ async def get_stats(authorization: str = None):
     }
 
 @app.get("/api/v1/stats/daily")
-async def get_daily_stats(authorization: str = None):
+async def get_daily_stats(authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -320,7 +320,7 @@ async def get_daily_stats(authorization: str = None):
 # ============ RULES ENDPOINTS ============
 
 @app.get("/api/v1/rules")
-async def get_rules(authorization: str = None):
+async def get_rules(authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -332,7 +332,7 @@ async def get_rules(authorization: str = None):
     }
 
 @app.post("/api/v1/rules")
-async def set_rules(max_risk_percent: float = None, authorization: str = None):
+async def set_rules(max_risk_percent: float = None, authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -341,7 +341,7 @@ async def set_rules(max_risk_percent: float = None, authorization: str = None):
 # ============ ANALYSIS ENDPOINTS ============
 
 @app.post("/api/v1/analysis/trade")
-async def analyze_trade(symbol: str = None, direction: str = None, entry: float = None, sl: float = None, tp: float = None, authorization: str = None):
+async def analyze_trade(symbol: str = None, direction: str = None, entry: float = None, sl: float = None, tp: float = None, authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
@@ -354,7 +354,7 @@ async def analyze_trade(symbol: str = None, direction: str = None, entry: float 
     }
 
 @app.get("/api/v1/analysis/performance")
-async def get_performance(authorization: str = None):
+async def get_performance(authorization: str = Header(None)):
     if not authorization:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
