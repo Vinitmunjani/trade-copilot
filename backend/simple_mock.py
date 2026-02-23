@@ -1,3 +1,4 @@
+from fastapi.responses import JSONResponse
 """Trade Co-Pilot Backend - MT5 Terminal Integration."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,11 +66,11 @@ async def health():
 @app.post("/api/v1/auth/register")
 async def register(email: str = None, password: str = None, confirm_password: str = None):
     if not email or not password:
-        return {"detail": "Missing fields"}, 422
+        return JSONResponse({"detail": "Missing fields"}, status_code=422)
     if password != confirm_password:
-        return {"detail": "Passwords don't match"}, 400
+        return JSONResponse({"detail": "Passwords don't match"}, status_code=400)
     if email in users:
-        return {"detail": "User exists"}, 400
+        return JSONResponse({"detail": "User exists"}, status_code=400)
     
     user_id = str(uuid.uuid4())
     token = f"token_{user_id}_{uuid.uuid4().hex[:8]}"
@@ -89,7 +90,7 @@ async def register(email: str = None, password: str = None, confirm_password: st
 @app.post("/api/v1/auth/login")
 async def login(email: str = None, password: str = None):
     if email not in users or users[email]["password"] != password:
-        return {"detail": "Invalid credentials"}, 401
+        return JSONResponse({"detail": "Invalid credentials"}, status_code=401)
     
     user_id = users[email]["id"]
     token = f"token_{user_id}_{uuid.uuid4().hex[:8]}"
@@ -106,13 +107,13 @@ async def login(email: str = None, password: str = None):
 @app.get("/api/v1/auth/me")
 async def get_me(authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     token = authorization.replace("Bearer ", "").strip()
     session = get_or_create_session(token)
     
     if not session:
-        return {"detail": "Invalid token"}, 401
+        return JSONResponse({"detail": "Invalid token"}, status_code=401)
     
     return {
         "id": session["user_id"],
@@ -125,16 +126,16 @@ async def get_me(authorization: str = None):
 async def connect_account(broker: str = None, login: str = None, password: str = None, server: str = None, authorization: str = None):
     """Connect to MT5 account - launches terminal and monitors for trades."""
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     token = authorization.replace("Bearer ", "").strip()
     session = get_or_create_session(token)
     
     if not session:
-        return {"detail": "Invalid token"}, 401
+        return JSONResponse({"detail": "Invalid token"}, status_code=401)
     
     if not broker or not login or not password:
-        return {"detail": "Missing broker, login, or password"}, 422
+        return JSONResponse({"detail": "Missing broker, login, or password"}, status_code=422)
     
     user_id = session["user_id"]
     
@@ -143,7 +144,7 @@ async def connect_account(broker: str = None, login: str = None, password: str =
     result = mt5_manager.launch_terminal(user_id, broker, login, password, server or "Demo")
     
     if result["status"] == "failed":
-        return {"detail": result.get("error", "Failed to launch terminal")}, 400
+        return JSONResponse({"detail": result.get("error", "Failed to launch terminal")}, status_code=400)
     
     # Get account info from terminal
     account_info = mt5_manager.get_account_info(user_id)
@@ -176,13 +177,13 @@ async def connect_account(broker: str = None, login: str = None, password: str =
 @app.get("/api/v1/account/list")
 async def list_accounts(authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     token = authorization.replace("Bearer ", "").strip()
     session = get_or_create_session(token)
     
     if not session:
-        return {"detail": "Invalid token"}, 401
+        return JSONResponse({"detail": "Invalid token"}, status_code=401)
     
     user_accounts = [a for a in accounts.values() if a["user_id"] == session["user_id"]]
     return user_accounts
@@ -190,7 +191,7 @@ async def list_accounts(authorization: str = None):
 @app.delete("/api/v1/account/{account_id}")
 async def disconnect_account(account_id: str, authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     if account_id in accounts:
         # Stop the MT5 terminal
@@ -200,20 +201,20 @@ async def disconnect_account(account_id: str, authorization: str = None):
         del accounts[account_id]
         save_to_file(ACCOUNTS_FILE, accounts)
         return {"status": "disconnected"}
-    return {"detail": "Account not found"}, 404
+    return JSONResponse({"detail": "Account not found"}, status_code=404)
 
 # ============ TRADES ENDPOINTS ============
 
 @app.get("/api/v1/trades")
 async def get_trades(authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     token = authorization.replace("Bearer ", "").strip()
     session = get_or_create_session(token)
     
     if not session:
-        return {"detail": "Invalid token"}, 401
+        return JSONResponse({"detail": "Invalid token"}, status_code=401)
     
     user_id = session["user_id"]
     
@@ -230,13 +231,13 @@ async def get_trades(authorization: str = None):
 @app.post("/api/v1/trades")
 async def create_trade(symbol: str = None, direction: str = None, entry_price: float = None, exit_price: float = None, lot_size: float = None, authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     token = authorization.replace("Bearer ", "").strip()
     session = get_or_create_session(token)
     
     if not session:
-        return {"detail": "Invalid token"}, 401
+        return JSONResponse({"detail": "Invalid token"}, status_code=401)
     
     # Store trade record
     trade_id = str(uuid.uuid4())
@@ -255,10 +256,10 @@ async def create_trade(symbol: str = None, direction: str = None, entry_price: f
 @app.put("/api/v1/trades/{trade_id}")
 async def update_trade(trade_id: str, exit_price: float = None, authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     if trade_id not in trades:
-        return {"detail": "Trade not found"}, 404
+        return JSONResponse({"detail": "Trade not found"}, status_code=404)
     
     if exit_price:
         trade = trades[trade_id]
@@ -270,26 +271,26 @@ async def update_trade(trade_id: str, exit_price: float = None, authorization: s
 @app.delete("/api/v1/trades/{trade_id}")
 async def delete_trade(trade_id: str, authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     if trade_id in trades:
         del trades[trade_id]
         save_to_file(TRADES_FILE, trades)
         return {"status": "deleted"}
-    return {"detail": "Trade not found"}, 404
+    return JSONResponse({"detail": "Trade not found"}, status_code=404)
 
 # ============ STATS ENDPOINTS ============
 
 @app.get("/api/v1/stats")
 async def get_stats(authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     token = authorization.replace("Bearer ", "").strip()
     session = get_or_create_session(token)
     
     if not session:
-        return {"detail": "Invalid token"}, 401
+        return JSONResponse({"detail": "Invalid token"}, status_code=401)
     
     user_trades = [t for t in trades.values() if t["user_id"] == session["user_id"]]
     
@@ -306,7 +307,7 @@ async def get_stats(authorization: str = None):
 @app.get("/api/v1/stats/daily")
 async def get_daily_stats(authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     return {
         "date": datetime.utcnow().isoformat(),
@@ -321,7 +322,7 @@ async def get_daily_stats(authorization: str = None):
 @app.get("/api/v1/rules")
 async def get_rules(authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     return {
         "max_risk_percent": 2.0,
@@ -333,7 +334,7 @@ async def get_rules(authorization: str = None):
 @app.post("/api/v1/rules")
 async def set_rules(max_risk_percent: float = None, authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     return {"status": "saved"}
 
@@ -342,7 +343,7 @@ async def set_rules(max_risk_percent: float = None, authorization: str = None):
 @app.post("/api/v1/analysis/trade")
 async def analyze_trade(symbol: str = None, direction: str = None, entry: float = None, sl: float = None, tp: float = None, authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     return {
         "symbol": symbol,
@@ -355,7 +356,7 @@ async def analyze_trade(symbol: str = None, direction: str = None, entry: float 
 @app.get("/api/v1/analysis/performance")
 async def get_performance(authorization: str = None):
     if not authorization:
-        return {"detail": "Not authenticated"}, 401
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
     
     return {
         "monthly_return": 2.5,
