@@ -1,15 +1,15 @@
-"""Mock API with real MT5 connection logic."""
+"""Trade Co-Pilot Backend - MT5 Terminal Integration."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
 import json
 import os
-from mt5_connector import MT5Connector
-from broker_api import BrokerAPIClient
+from datetime import datetime
+from mt5_container_manager import mt5_manager
 
 app = FastAPI(title="Trade Co-Pilot")
 
-# CORS with credentials
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,20 +18,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Persistent storage files
+# Persistent storage
 ACCOUNTS_FILE = "/tmp/accounts.json"
 USERS_FILE = "/tmp/users.json"
 SESSIONS_FILE = "/tmp/sessions.json"
 TRADES_FILE = "/tmp/trades.json"
 
-# In-memory with persistence
 users = {}
 sessions = {}
 accounts = {}
 trades = {}
 
 def load_from_file(filepath: str, default=None):
-    """Load data from JSON file."""
     try:
         if os.path.exists(filepath):
             with open(filepath, 'r') as f:
@@ -41,7 +39,6 @@ def load_from_file(filepath: str, default=None):
     return default or {}
 
 def save_to_file(filepath: str, data: dict):
-    """Save data to JSON file."""
     try:
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=2)
@@ -55,19 +52,18 @@ accounts = load_from_file(ACCOUNTS_FILE, {})
 trades = load_from_file(TRADES_FILE, {})
 
 def get_or_create_session(token: str):
-    """Get or create session from token."""
     if token and token in sessions:
         return sessions[token]
     return None
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "redis": "connected", "websocket_connections": 0}
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
-# AUTH ENDPOINTS
+# ============ AUTH ENDPOINTS ============
+
 @app.post("/api/v1/auth/register")
 async def register(email: str = None, password: str = None, confirm_password: str = None):
-    """Register - returns token."""
     if not email or not password:
         return {"detail": "Missing fields"}, 422
     if password != confirm_password:
@@ -92,7 +88,6 @@ async def register(email: str = None, password: str = None, confirm_password: st
 
 @app.post("/api/v1/auth/login")
 async def login(email: str = None, password: str = None):
-    """Login - returns persistent token."""
     if email not in users or users[email]["password"] != password:
         return {"detail": "Invalid credentials"}, 401
     
@@ -110,7 +105,6 @@ async def login(email: str = None, password: str = None):
 
 @app.get("/api/v1/auth/me")
 async def get_me(authorization: str = None):
-    """Get current user from token."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -125,10 +119,11 @@ async def get_me(authorization: str = None):
         "email": session["email"]
     }
 
-# ACCOUNT ENDPOINTS - WITH REAL MT5 CONNECTION
+# ============ ACCOUNT ENDPOINTS ============
+
 @app.post("/api/v1/account/connect")
 async def connect_account(broker: str = None, login: str = None, password: str = None, server: str = None, authorization: str = None):
-    """Connect broker account via real broker APIs."""
+    """Connect to MT5 account - launches terminal and monitors for trades."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -141,38 +136,45 @@ async def connect_account(broker: str = None, login: str = None, password: str =
     if not broker or not login or not password:
         return {"detail": "Missing broker, login, or password"}, 422
     
-    # Connect via real broker API
-    result = MT5Connector.connect_account(broker, login, password, server or "Demo")
+    user_id = session["user_id"]
+    
+    # Launch MT5 terminal in Docker
+    print(f"Launching MT5 terminal: {broker} - {login}")
+    result = mt5_manager.launch_terminal(user_id, broker, login, password, server or "Demo")
     
     if result["status"] == "failed":
-        return {"detail": result.get("error", "Failed to connect")}, 400
+        return {"detail": result.get("error", "Failed to launch terminal")}, 400
     
-    # Store account
+    # Get account info from terminal
+    account_info = mt5_manager.get_account_info(user_id)
+    
+    # Store account record
     account_id = str(uuid.uuid4())
     accounts[account_id] = {
         "id": account_id,
-        "user_id": session["user_id"],
+        "user_id": user_id,
         "broker": broker,
         "login": login,
         "server": server or "Demo",
         "status": "connected",
-        "account_info": result.get("account_info", {})
+        "container_id": result.get("container_id"),
+        "port": result.get("port"),
+        "account_info": account_info.get("account_info", {})
     }
     save_to_file(ACCOUNTS_FILE, accounts)
     
-    # Return with full account info
     return {
         "id": account_id,
         "broker": broker,
         "login": login,
         "server": server or "Demo",
         "status": "connected",
-        "account_info": result.get("account_info", {})
+        "account_info": account_info.get("account_info", {}),
+        "message": "Terminal launched and monitoring for trades"
     }
 
 @app.get("/api/v1/account/list")
 async def list_accounts(authorization: str = None):
-    """Get all connected accounts."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -187,20 +189,23 @@ async def list_accounts(authorization: str = None):
 
 @app.delete("/api/v1/account/{account_id}")
 async def disconnect_account(account_id: str, authorization: str = None):
-    """Disconnect account."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
     if account_id in accounts:
+        # Stop the MT5 terminal
+        user_id = accounts[account_id]["user_id"]
+        mt5_manager.stop_terminal(user_id)
+        
         del accounts[account_id]
         save_to_file(ACCOUNTS_FILE, accounts)
         return {"status": "disconnected"}
     return {"detail": "Account not found"}, 404
 
-# TRADES ENDPOINTS
-@app.post("/api/v1/trades")
-async def create_trade(symbol: str = "EURUSD", direction: str = "BUY", entry_price: float = 1.0, exit_price: float = None, lot_size: float = 1.0, authorization: str = None):
-    """Create trade."""
+# ============ TRADES ENDPOINTS ============
+
+@app.get("/api/v1/trades")
+async def get_trades(authorization: str = None):
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -210,11 +215,31 @@ async def create_trade(symbol: str = "EURUSD", direction: str = "BUY", entry_pri
     if not session:
         return {"detail": "Invalid token"}, 401
     
-    trade_id = str(uuid.uuid4())
-    pnl = 0.0
-    if exit_price:
-        pnl = (exit_price - entry_price) * lot_size if direction == "BUY" else (entry_price - exit_price) * lot_size
+    user_id = session["user_id"]
     
+    # Get trades from MT5 terminal
+    all_trades = []
+    user_accounts = [a for a in accounts.values() if a["user_id"] == user_id]
+    
+    for account in user_accounts:
+        terminal_trades = mt5_manager.get_trades(user_id)
+        all_trades.extend(terminal_trades)
+    
+    return all_trades
+
+@app.post("/api/v1/trades")
+async def create_trade(symbol: str = None, direction: str = None, entry_price: float = None, exit_price: float = None, lot_size: float = None, authorization: str = None):
+    if not authorization:
+        return {"detail": "Not authenticated"}, 401
+    
+    token = authorization.replace("Bearer ", "").strip()
+    session = get_or_create_session(token)
+    
+    if not session:
+        return {"detail": "Invalid token"}, 401
+    
+    # Store trade record
+    trade_id = str(uuid.uuid4())
     trades[trade_id] = {
         "id": trade_id,
         "user_id": session["user_id"],
@@ -223,30 +248,12 @@ async def create_trade(symbol: str = "EURUSD", direction: str = "BUY", entry_pri
         "entry_price": entry_price,
         "exit_price": exit_price,
         "lot_size": lot_size,
-        "pnl": pnl
     }
-    
     save_to_file(TRADES_FILE, trades)
     return trades[trade_id]
 
-@app.get("/api/v1/trades")
-async def get_trades(authorization: str = None):
-    """Get user trades."""
-    if not authorization:
-        return {"detail": "Not authenticated"}, 401
-    
-    token = authorization.replace("Bearer ", "").strip()
-    session = get_or_create_session(token)
-    
-    if not session:
-        return {"detail": "Invalid token"}, 401
-    
-    user_trades = [t for t in trades.values() if t["user_id"] == session["user_id"]]
-    return user_trades
-
 @app.put("/api/v1/trades/{trade_id}")
 async def update_trade(trade_id: str, exit_price: float = None, authorization: str = None):
-    """Close/update trade."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -256,17 +263,12 @@ async def update_trade(trade_id: str, exit_price: float = None, authorization: s
     if exit_price:
         trade = trades[trade_id]
         trade["exit_price"] = exit_price
-        if trade["direction"] == "BUY":
-            trade["pnl"] = (exit_price - trade["entry_price"]) * trade["lot_size"]
-        else:
-            trade["pnl"] = (trade["entry_price"] - exit_price) * trade["lot_size"]
     
     save_to_file(TRADES_FILE, trades)
     return trades[trade_id]
 
 @app.delete("/api/v1/trades/{trade_id}")
 async def delete_trade(trade_id: str, authorization: str = None):
-    """Delete trade."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -276,10 +278,10 @@ async def delete_trade(trade_id: str, authorization: str = None):
         return {"status": "deleted"}
     return {"detail": "Trade not found"}, 404
 
-# STATS ENDPOINTS
+# ============ STATS ENDPOINTS ============
+
 @app.get("/api/v1/stats")
 async def get_stats(authorization: str = None):
-    """Get trading stats."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -290,50 +292,34 @@ async def get_stats(authorization: str = None):
         return {"detail": "Invalid token"}, 401
     
     user_trades = [t for t in trades.values() if t["user_id"] == session["user_id"]]
-    winning = [x for x in user_trades if x.get("pnl", 0) > 0]
-    losing = [x for x in user_trades if x.get("pnl", 0) < 0]
-    total_pnl = sum(x.get("pnl", 0) for x in user_trades)
     
     return {
         "total_trades": len(user_trades),
-        "winning_trades": len(winning),
-        "losing_trades": len(losing),
-        "total_pnl": total_pnl,
-        "win_rate": len(winning)/len(user_trades) if user_trades else 0,
+        "winning_trades": 0,
+        "losing_trades": 0,
+        "total_pnl": 0,
+        "win_rate": 0,
         "ai_score": 85,
         "behavioral_alerts": 0
     }
 
 @app.get("/api/v1/stats/daily")
 async def get_daily_stats(authorization: str = None):
-    """Get daily stats."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
     return {
-        "date": "2026-02-21",
-        "trades": 3,
-        "pnl": 150.50,
-        "win_rate": 0.67,
-        "ai_score": 88
+        "date": datetime.utcnow().isoformat(),
+        "trades": 0,
+        "pnl": 0,
+        "win_rate": 0,
+        "ai_score": 85
     }
 
-# RULES ENDPOINTS
-@app.post("/api/v1/rules")
-async def set_rules(max_risk_percent: float = 2.0, max_daily_loss: float = 5.0, authorization: str = None):
-    """Set trading rules."""
-    if not authorization:
-        return {"detail": "Not authenticated"}, 401
-    
-    return {
-        "max_risk_percent": max_risk_percent,
-        "max_daily_loss": max_daily_loss,
-        "status": "saved"
-    }
+# ============ RULES ENDPOINTS ============
 
 @app.get("/api/v1/rules")
 async def get_rules(authorization: str = None):
-    """Get trading rules."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -344,20 +330,23 @@ async def get_rules(authorization: str = None):
         "min_risk_reward": 1.5
     }
 
-# ANALYSIS ENDPOINTS
+@app.post("/api/v1/rules")
+async def set_rules(max_risk_percent: float = None, authorization: str = None):
+    if not authorization:
+        return {"detail": "Not authenticated"}, 401
+    
+    return {"status": "saved"}
+
+# ============ ANALYSIS ENDPOINTS ============
+
 @app.post("/api/v1/analysis/trade")
-async def analyze_trade(symbol: str = "EURUSD", direction: str = "BUY", entry: float = 1.0, sl: float = 0.99, tp: float = 1.01, authorization: str = None):
-    """Analyze trade setup."""
+async def analyze_trade(symbol: str = None, direction: str = None, entry: float = None, sl: float = None, tp: float = None, authorization: str = None):
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
     return {
         "symbol": symbol,
         "direction": direction,
-        "entry": entry,
-        "stop_loss": sl,
-        "take_profit": tp,
-        "risk_reward": abs(tp - entry) / abs(entry - sl) if entry != sl else 0,
         "ai_score": 82,
         "recommendation": "GOOD",
         "flags": []
@@ -365,7 +354,6 @@ async def analyze_trade(symbol: str = "EURUSD", direction: str = "BUY", entry: f
 
 @app.get("/api/v1/analysis/performance")
 async def get_performance(authorization: str = None):
-    """Get performance analysis."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
