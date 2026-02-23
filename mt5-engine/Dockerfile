@@ -33,6 +33,9 @@ COPY entrypoint.sh /app/entrypoint.sh
 COPY api_server.py /app/api_server.py
 COPY ea/TradeMonitor.mq5 /app/TradeMonitor.mq5
 
+# Copy MT5 terminal executable
+COPY terminal64.exe /app/terminal/terminal64.exe
+
 RUN chmod +x /app/download_mt5.sh /app/setup_mt5.sh /app/entrypoint.sh
 
 # Create Wine and terminal directories
