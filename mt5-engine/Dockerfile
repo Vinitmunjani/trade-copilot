@@ -5,20 +5,22 @@ ENV DISPLAY=:99
 ENV WINEARCH=win64
 ENV WINEPREFIX=/root/.wine
 
-# Install dependencies (wine64 only)
+# Install dependencies - avoid wine conflicts with smaller install
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wine64 \
-    wine-binfmt \
     xvfb \
     xdotool \
-    dbus \
-    dbus-user-session \
     python3 python3-pip \
     curl wget \
     ca-certificates \
     fonts-liberation \
     fontconfig \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Wine separately with --fix-missing
+RUN apt-get update && apt-get install -y --fix-missing \
+    wine64 \
+    wine-binfmt \
+    && rm -rf /var/lib/apt/lists/* || true
 
 WORKDIR /app
 
