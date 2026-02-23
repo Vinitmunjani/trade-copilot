@@ -5,6 +5,7 @@ import uuid
 import json
 import os
 from mt5_connector import MT5Connector
+from broker_api import BrokerAPIClient
 
 app = FastAPI(title="Trade Co-Pilot")
 
