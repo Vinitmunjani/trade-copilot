@@ -128,7 +128,7 @@ async def get_me(authorization: str = None):
 # ACCOUNT ENDPOINTS - WITH REAL MT5 CONNECTION
 @app.post("/api/v1/account/connect")
 async def connect_account(broker: str = None, login: str = None, password: str = None, server: str = None, authorization: str = None):
-    """Connect broker account - REAL MT5 LOGIN."""
+    """Connect broker account via real broker APIs."""
     if not authorization:
         return {"detail": "Not authenticated"}, 401
     
@@ -141,37 +141,29 @@ async def connect_account(broker: str = None, login: str = None, password: str =
     if not broker or not login or not password:
         return {"detail": "Missing broker, login, or password"}, 422
     
-    # Normalize broker name
-    broker_normalized = broker.lower()
-    
-    # REAL MT5 CONNECTION
+    # Connect via real broker API
     result = MT5Connector.connect_account(broker, login, password, server or "Demo")
     
     if result["status"] == "failed":
-        return {"detail": result.get("error", "Failed to connect to MT5")}, 400
+        return {"detail": result.get("error", "Failed to connect")}, 400
     
-    # Create account record with ORIGINAL broker name (not container response)
+    # Store account
     account_id = str(uuid.uuid4())
-    mt5_port = MT5Connector.get_port_for_broker(broker)
-    
     accounts[account_id] = {
         "id": account_id,
         "user_id": session["user_id"],
-        "broker": broker,  # Store original broker name (Exness, ICMarkets, XM)
+        "broker": broker,
         "login": login,
         "server": server or "Demo",
         "status": "connected",
-        "mt5_port": mt5_port,
         "account_info": result.get("account_info", {})
     }
-    
-    # Persist to file
     save_to_file(ACCOUNTS_FILE, accounts)
     
-    # Return response with correct broker name
+    # Return with full account info
     return {
         "id": account_id,
-        "broker": broker,  # Return original broker name
+        "broker": broker,
         "login": login,
         "server": server or "Demo",
         "status": "connected",
