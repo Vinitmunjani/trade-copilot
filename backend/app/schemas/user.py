@@ -52,6 +52,9 @@ class TradingAccountConnect(BaseModel):
     password: str = Field(..., description="MT4/MT5 account password")
     server: str = Field(..., description="Broker server name (e.g. ICMarketsSC-Demo)")
     platform: str = Field("mt5", description="Platform: mt4 or mt5")
+    broker: str = Field("Exness", description="Broker name")
+    metaapi_token: Optional[str] = Field(None, description="Optional MetaAPI token to use for this connection (temporary)")
+    account_id: Optional[str] = Field(None, description="Optional existing MetaAPI account ID (skip provisioning if provided)")
 
 
 class TradingAccountResponse(BaseModel):
@@ -63,6 +66,23 @@ class TradingAccountResponse(BaseModel):
     platform: Optional[str] = None
     connection_status: Optional[str] = None
     message: Optional[str] = None
+    balance: Optional[float] = None
+    equity: Optional[float] = None
+    currency: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class MetaAccountResponse(BaseModel):
+    """Schema for a user's MetaAPI-linked account."""
+    id: Optional[uuid.UUID] = None
+    account_id: Optional[str] = None
+    login: Optional[str] = None
+    server: Optional[str] = None
+    platform: Optional[str] = None
+    connection_status: Optional[str] = None
+    message: Optional[str] = None
+    last_heartbeat: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

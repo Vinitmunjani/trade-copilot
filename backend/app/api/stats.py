@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.daily_stats import DailyStats
+from app.models.trade import Trade, TradeStatus
 from app.models.user import User
 from app.services.stats_service import (
     calculate_daily_stats,
@@ -34,14 +35,20 @@ async def get_overview(
     today = datetime.now(timezone.utc).date()
     stats = await calculate_daily_stats(db, str(current_user.id), today)
 
+    _total_trades = stats["total_trades"]
+    _flag_count = stats.get("behavioral_flags_count", 0)
+    adherence = round(max(0.0, ((_total_trades - _flag_count) / max(1, _total_trades)) * 100), 1) if _total_trades > 0 else 100.0
+
     return {
         "date": today.isoformat(),
         "total_pnl": stats["total_pnl"],
+        "total_pnl_r": stats.get("total_pnl_r", 0),
         "total_trades": stats["total_trades"],
         "winning_trades": stats["winning_trades"],
         "losing_trades": stats["losing_trades"],
         "win_rate": stats["win_rate"],
         "avg_r": stats["r_expectancy"],
+        "adherence": adherence,
         "largest_win": stats["largest_win"],
         "largest_loss": stats["largest_loss"],
         "session_breakdown": stats["session_breakdown"],
@@ -101,6 +108,7 @@ async def get_daily_stats(
                 "largest_loss": stored_entry.largest_loss,
                 "session_breakdown": stored_entry.session_breakdown,
                 "symbol_breakdown": stored_entry.symbol_breakdown,
+                "behavioral_flags_count": stored_entry.behavioral_flags_count or 0,
             })
         else:
             # Calculate on-the-fly for missing dates
@@ -161,3 +169,157 @@ async def get_session_performance(
     """
     stats = await get_session_stats(db, str(current_user.id), days)
     return stats
+
+
+def _compute_weekly_grade(win_rate: float, total_pnl: float, total_flags: int, total_trades: int) -> str:
+    """Compute an A-F grade for a trading week based on performance metrics."""
+    pts = min(40.0, win_rate * 0.4)
+    pts += 20.0 if total_pnl > 0 else 0.0
+    pts += max(0.0, 20.0 - (total_flags / max(1, total_trades)) * 40)
+    pts += min(20.0, total_trades * 2.0)
+    if pts >= 80: return "A"
+    if pts >= 65: return "B"
+    if pts >= 50: return "C"
+    if pts >= 35: return "D"
+    return "F"
+
+
+@router.get("/weekly-reports")
+async def get_weekly_reports(
+    weeks: int = Query(4, ge=1, le=12, description="Number of past weeks to return"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate weekly performance reports from real trade data.
+
+    Returns the last N weeks with grade, P&L, win rate, patterns detected,
+    strengths/weaknesses, and an actionable top suggestion.
+    """
+    from uuid import uuid4 as _uuid4
+
+    now = datetime.now(timezone.utc)
+    reports = []
+
+    for weeks_ago in range(weeks):
+        week_start = (now - timedelta(days=now.weekday() + weeks_ago * 7)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        week_end = week_start + timedelta(days=7)
+
+        result = await db.execute(
+            select(Trade).where(
+                and_(
+                    Trade.user_id == current_user.id,
+                    Trade.status == TradeStatus.CLOSED,
+                    Trade.close_time >= week_start,
+                    Trade.close_time < week_end,
+                )
+            ).order_by(Trade.close_time.asc())
+        )
+        trades = result.scalars().all()
+
+        if not trades:
+            continue
+
+        total_trades = len(trades)
+        winners = [t for t in trades if t.pnl and t.pnl > 0]
+        win_rate = round(len(winners) / total_trades * 100, 1) if total_trades else 0.0
+        total_pnl = round(sum(t.pnl or 0 for t in trades), 2)
+        total_r = sum(t.pnl_r or 0 for t in trades if t.pnl_r is not None)
+        avg_r = round(total_r / total_trades, 2) if total_trades else 0.0
+
+        # Collect unique flag names and total count
+        flag_names: set = set()
+        all_flags: list = []
+        for t in trades:
+            if t.behavioral_flags:
+                for f in t.behavioral_flags:
+                    name = (f.get("flag") or f.get("type") or "unknown") if isinstance(f, dict) else str(f)
+                    flag_names.add(name)
+                    all_flags.append(f)
+        total_flags = len(all_flags)
+        patterns_detected = sorted(flag_names)
+
+        grade = _compute_weekly_grade(win_rate, total_pnl, total_flags, total_trades)
+
+        # Strengths
+        strengths: list = []
+        if win_rate >= 60:
+            strengths.append(f"Strong win rate of {win_rate}%")
+        if total_pnl > 0:
+            strengths.append(f"Net profitable week (+${total_pnl:.2f})")
+        if avg_r >= 1.5:
+            strengths.append(f"Good average R-multiple of {avg_r}R")
+        ai_scores = [t.ai_score for t in trades if t.ai_score is not None]
+        if ai_scores and (sum(ai_scores) / len(ai_scores)) >= 7:
+            strengths.append(f"Quality setups — avg AI score {round(sum(ai_scores)/len(ai_scores),1)}/10")
+        if not flag_names:
+            strengths.append("Clean trading — no behavioral flags detected")
+        if not strengths:
+            strengths.append("Trades executed with defined risk levels")
+
+        # Weaknesses
+        weaknesses: list = []
+        if win_rate < 45:
+            weaknesses.append(f"Below-average win rate of {win_rate}%")
+        if total_pnl < 0:
+            weaknesses.append(f"Net losing week (${total_pnl:.2f})")
+        if "revenge_trading" in flag_names:
+            weaknesses.append("Revenge trading — emotional decisions after losses")
+        if "overtrading" in flag_names:
+            weaknesses.append("Overtrading — exceeding daily trade limits")
+        if "moved_stop_loss" in flag_names:
+            weaknesses.append("Stop-loss discipline — SL moved against the trade")
+        if avg_r < 0:
+            weaknesses.append(f"Negative R expectancy ({avg_r}R per trade)")
+        if not weaknesses:
+            weaknesses.append("No major issues detected this week")
+
+        # Top suggestion
+        if "revenge_trading" in flag_names:
+            suggestion = "Take a break after 2+ consecutive losses to reset before trading again."
+        elif "overtrading" in flag_names:
+            suggestion = "Stick to your daily trade limit — quality over quantity."
+        elif "moved_stop_loss" in flag_names:
+            suggestion = "Honor your stop losses. Moving them widens risk beyond your plan."
+        elif win_rate < 45:
+            suggestion = "Be more selective — only take setups scoring 7+ on AI pre-trade analysis."
+        elif avg_r < 1.0:
+            suggestion = "Focus on R:R — only enter trades with at least a 2:1 risk/reward setup."
+        else:
+            suggestion = "Keep documenting your best setups; consistency is your edge."
+
+        # Summary
+        if grade in ("A", "B"):
+            summary = (
+                f"Strong week with {win_rate}% win rate and +${total_pnl:.2f} P&L across "
+                f"{total_trades} trade{'s' if total_trades != 1 else ''}."
+            )
+        elif grade == "C":
+            summary = (
+                f"Mixed week — {win_rate}% win rate, {total_trades} trades, "
+                f"{len(flag_names)} pattern(s) flagged."
+            )
+        else:
+            summary = (
+                f"Challenging week — {win_rate}% win rate, ${total_pnl:.2f} P&L. "
+                "Focus on discipline and process improvement."
+            )
+
+        reports.append({
+            "id": f"week-{weeks_ago}-{week_start.date().isoformat()}",
+            "week_start": week_start.date().isoformat(),
+            "week_end": week_end.date().isoformat(),
+            "summary": summary,
+            "total_trades": total_trades,
+            "total_pnl": total_pnl,
+            "win_rate": win_rate,
+            "avg_r": avg_r,
+            "patterns_detected": patterns_detected,
+            "top_suggestion": suggestion,
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "grade": grade,
+        })
+
+    return reports

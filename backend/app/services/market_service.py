@@ -7,11 +7,13 @@ Caches results in Redis with 5-minute refresh.
 
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
-from typing import List, Dict,  Optional, Any
+from typing import List, Dict, Optional, Any
 
 import numpy as np
 import redis.asyncio as aioredis
+from sqlalchemy import select, and_
 
 from app.config import get_settings
 from app.services.behavioral_service import get_current_session, SESSIONS
@@ -256,3 +258,176 @@ async def get_market_context(
             logger.warning(f"Redis cache write error: {e}")
 
     return context
+
+
+async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
+    """Fetch live market context for a symbol by pulling candles from MetaAPI.
+
+    Looks up the user's active MetaAPI account, downloads 250 H1 candles and
+    30 D1 candles, computes EMAs (20/50/200), ATR(14), key support/resistance
+    levels and session info.  Result is cached in Redis for 5 minutes.
+
+    Falls back to a minimal empty context rather than raising, so AI tasks
+    never abort because of a missing market data dependency.
+
+    Args:
+        symbol: Trading symbol, e.g. "EURUSD" or "XAUUSD".
+        user_id: User UUID string — used to look up the linked MetaAPI account.
+
+    Returns:
+        Market context dict (same schema as ``get_market_context`` output).
+    """
+    cache_key = f"market_context:{symbol}"
+
+    # --- 1. Check Redis cache first ---
+    try:
+        from app.core.dependencies import get_redis  # local import avoids top-level circular deps
+        redis_client = await get_redis()
+        if redis_client:
+            cached = await redis_client.get(cache_key)
+            if cached:
+                logger.debug(f"Market context cache hit for {symbol}")
+                return json.loads(cached)
+    except Exception:
+        redis_client = None
+
+    _empty = {
+        "symbol": symbol,
+        "current_price": None,
+        "ema20": None,
+        "ema50": None,
+        "ema200": None,
+        "ema20_trend": "N/A",
+        "ema50_trend": "N/A",
+        "ema200_trend": "N/A",
+        "overall_trend": "unknown",
+        "atr": None,
+        "support_levels": [],
+        "resistance_levels": [],
+        "session": get_current_session(),
+        "daily_range_percent": None,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source": "empty",
+    }
+
+    # --- 2. Look up the user's MetaAPI account ID ---
+    metaapi_account_id: Optional[str] = None
+    try:
+        from app.database import async_session_factory
+        from app.models.meta_account import MetaAccount
+
+        user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(MetaAccount).where(
+                    and_(
+                        MetaAccount.user_id == user_uuid,
+                        MetaAccount.metaapi_account_id.isnot(None),
+                    )
+                ).order_by(MetaAccount.created_at.desc())
+            )
+            account_row = result.scalars().first()
+            if account_row:
+                metaapi_account_id = account_row.metaapi_account_id
+    except Exception:
+        logger.warning(f"Could not look up MetaAPI account for user {user_id} — skipping live candle fetch")
+        return _empty
+
+    if not metaapi_account_id:
+        logger.info(f"No MetaAPI account linked for user {user_id} — skipping live candle fetch")
+        return _empty
+
+    # --- 3. Fetch candles from MetaAPI ---
+    try:
+        token = settings.METAAPI_TOKEN
+        if not token:
+            logger.warning("METAAPI_TOKEN not set — cannot fetch live candles")
+            return _empty
+
+        from metaapi_cloud_sdk import MetaApi  # noqa: lazy import
+        api = MetaApi(token)
+        account = await api.metatrader_account_api.get_account(metaapi_account_id)
+
+        # Fetch 250 H1 candles (enough for EMA-200) and 30 D1 candles (ATR + daily range)
+        h1_candles_raw = await account.get_historical_candles(symbol, "1h", limit=250)
+        d1_candles_raw = await account.get_historical_candles(symbol, "1d", limit=30)
+
+        # Sort oldest-first for EMA calculation
+        def _sort_candles(candles):
+            return sorted(candles, key=lambda c: c.get("time") or c.get("brokerTime") or "")
+
+        h1_candles = _sort_candles(h1_candles_raw) if h1_candles_raw else []
+        d1_candles = _sort_candles(d1_candles_raw) if d1_candles_raw else []
+
+        if not h1_candles:
+            logger.warning(f"MetaAPI returned no H1 candles for {symbol}")
+            return _empty
+
+        # Extract OHLC arrays
+        h1_closes = [float(c.get("close", 0)) for c in h1_candles]
+        h1_highs  = [float(c.get("high",  0)) for c in h1_candles]
+        h1_lows   = [float(c.get("low",   0)) for c in h1_candles]
+
+        current_price = h1_closes[-1] if h1_closes else 0
+
+        # D1 for ATR — fall back to H1 if not available
+        if d1_candles and len(d1_candles) >= 15:
+            d_closes = [float(c.get("close", 0)) for c in d1_candles]
+            d_highs  = [float(c.get("high",  0)) for c in d1_candles]
+            d_lows   = [float(c.get("low",   0)) for c in d1_candles]
+        else:
+            d_closes, d_highs, d_lows = h1_closes, h1_highs, h1_lows
+
+        # Compute indicators
+        ema20  = calculate_ema(h1_closes, 20)
+        ema50  = calculate_ema(h1_closes, 50)
+        ema200 = calculate_ema(h1_closes, 200)
+        atr    = calculate_atr(d_highs, d_lows, d_closes, 14)
+        trend  = determine_trend(current_price, ema20, ema50, ema200)
+        levels = identify_key_levels(h1_highs, h1_lows, h1_closes, current_price)
+
+        # Daily range
+        daily_range_percent = None
+        if d1_candles:
+            today = d1_candles[-1]
+            today_high = float(today.get("high", 0))
+            today_low  = float(today.get("low",  0))
+            if atr and atr > 0 and today_high and today_low:
+                daily_range_percent = round(((today_high - today_low) / atr) * 100, 1)
+
+        context: Dict[str, Any] = {
+            "symbol": symbol,
+            "current_price": current_price,
+            "ema20": ema20,
+            "ema50": ema50,
+            "ema200": ema200,
+            "ema20_trend": trend["ema20_trend"],
+            "ema50_trend": trend["ema50_trend"],
+            "ema200_trend": trend["ema200_trend"],
+            "overall_trend": trend["overall"],
+            "atr": atr,
+            "support_levels": levels["support_levels"],
+            "resistance_levels": levels["resistance_levels"],
+            "session": get_current_session(),
+            "daily_range_percent": daily_range_percent,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "metaapi_live",
+        }
+
+        logger.info(
+            f"Live market context for {symbol}: price={current_price}, "
+            f"trend={trend['overall']}, ema20={ema20}, atr={atr}"
+        )
+
+        # --- 4. Cache result ---
+        try:
+            if redis_client:
+                await redis_client.set(cache_key, json.dumps(context), ex=CACHE_TTL)
+        except Exception:
+            pass
+
+        return context
+
+    except Exception:
+        logger.exception(f"Failed to fetch live market context for {symbol} — returning empty context")
+        return _empty

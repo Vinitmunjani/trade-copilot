@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 async def get_user_history_summary(
     db: AsyncSession,
-    user_id: str,
+    user_id,
     days: int = 30,
 ) -> dict:
     """Get a summary of the user's recent trading history for AI context.
@@ -159,6 +159,7 @@ async def calculate_daily_stats(
             "r_expectancy": 0,
             "session_breakdown": {},
             "symbol_breakdown": {},
+            "behavioral_flags_count": 0,
         }
 
     winners = [t for t in trades if t.pnl and t.pnl > 0]
@@ -223,6 +224,7 @@ async def calculate_daily_stats(
         "r_expectancy": round(sum(r_values) / len(r_values) if r_values else 0, 3),
         "session_breakdown": session_data,
         "symbol_breakdown": symbol_data,
+        "behavioral_flags_count": sum(len(t.behavioral_flags) if t.behavioral_flags else 0 for t in trades),
     }
 
 

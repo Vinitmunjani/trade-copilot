@@ -9,53 +9,66 @@ interface PnlCardProps {
   pnl: number;
   pnlR: number;
   label?: string;
+  tradesCount?: number;
 }
 
-export function PnlCard({ pnl, pnlR, label = "Today's P&L" }: PnlCardProps) {
+export function PnlCard({ pnl, pnlR, label = "Today's P&L", tradesCount }: PnlCardProps) {
   const isPositive = pnl >= 0;
 
   return (
-    <Card className="relative overflow-hidden">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
+    <Card className="relative overflow-hidden border-white/10 bg-gradient-to-br from-surface via-surface-muted to-surface-contrast">
+      <div className="pointer-events-none absolute inset-0 opacity-60">
+        <div
+          className={cn(
+            "absolute inset-y-0 right-0 w-1/3 blur-[90px]",
+            isPositive ? "bg-accent/40" : "bg-danger/25"
+          )}
+        />
+      </div>
+      <CardContent className="relative p-6">
+        <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-slate-400 mb-1">{label}</p>
+            <p className="text-xs uppercase tracking-[0.35em] text-muted">{label}</p>
             <p
               className={cn(
-                "text-4xl font-bold tracking-tight",
-                isPositive ? "text-emerald-400" : "text-red-400"
+                "mt-4 text-4xl font-semibold tracking-tight",
+                isPositive ? "text-glow" : "text-danger"
               )}
             >
               {formatCurrency(pnl)}
             </p>
             <p
               className={cn(
-                "text-lg font-medium mt-1",
-                isPositive ? "text-emerald-400/70" : "text-red-400/70"
+                "text-lg font-medium",
+                isPositive ? "text-accent" : "text-danger"
               )}
             >
               {formatR(pnlR)}
             </p>
+            {tradesCount !== undefined && (
+              <p className="mt-3 text-xs text-muted">
+                {tradesCount === 0
+                  ? "No trades closed today"
+                  : `${tradesCount} trade${tradesCount !== 1 ? "s" : ""} closed today`}
+              </p>
+            )}
           </div>
           <div
             className={cn(
-              "h-14 w-14 rounded-full flex items-center justify-center",
-              isPositive ? "bg-emerald-500/10" : "bg-red-500/10"
+              "flex h-16 w-16 items-center justify-center rounded-2xl border",
+              isPositive ? "border-accent/30 bg-accent/10 text-accent" : "border-danger/30 bg-danger/10 text-danger"
             )}
           >
-            {isPositive ? (
-              <TrendingUp className="h-7 w-7 text-emerald-400" />
-            ) : (
-              <TrendingDown className="h-7 w-7 text-red-400" />
-            )}
+            {isPositive ? <TrendingUp className="h-7 w-7" /> : <TrendingDown className="h-7 w-7" />}
           </div>
         </div>
       </CardContent>
-      {/* Decorative gradient */}
       <div
         className={cn(
-          "absolute bottom-0 left-0 right-0 h-1",
-          isPositive ? "bg-gradient-to-r from-emerald-500 to-emerald-600" : "bg-gradient-to-r from-red-500 to-red-600"
+          "absolute inset-x-6 bottom-4 h-px bg-gradient-to-r",
+          isPositive
+            ? "from-transparent via-accent/40 to-transparent"
+            : "from-transparent via-danger/40 to-transparent"
         )}
       />
     </Card>

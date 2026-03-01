@@ -26,15 +26,32 @@ Get these API keys:
 - [MetaAPI](https://metaapi.cloud) account (free tier)
 - [OpenAI](https://platform.openai.com) or [Anthropic](https://console.anthropic.com) API key
 
-### 2. Setup Environment
+### 2. Setup MetaAPI
+
+**First-time setup only**: Get your MetaAPI tokens from https://metaapi.cloud/
+
+See [METAAPI_SETUP.md](METAAPI_SETUP.md) for detailed instructions on:
+- Getting MetaAPI auth token
+- Configuring environment variables
+- Testing broker connection
+
+### 3. Setup Environment
 
 ```bash
 # Copy environment template
-cp .env.example .env
+cp backend/.env.example backend/.env
 
-# Edit .env with your API keys
-nano .env
+# Edit .env with your API keys and MetaAPI tokens
+nano backend/.env
 ```
+
+**Required keys**:
+- `METAAPI_TOKEN` (from MetaAPI dashboard) – put this value in your
+  `backend/.env` file and it will be loaded automatically when the server
+  starts.
+- `METAAPI_PROVISIONING_TOKEN` (from MetaAPI dashboard) – also sourced from
+  `.env`.
+- `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`
 
 ### 3. Run with Docker
 
@@ -52,12 +69,32 @@ docker-compose logs -f
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
 
-### 5. Connect Your Trading Account
+### 5. Connect Your Broker Account
 
-1. Register/login at localhost:3000
-2. Go to Settings → Connect Account
-3. Enter your MetaAPI token + account ID
-4. Start trading → get real-time AI scores!
+1. Register/login at http://localhost:3000
+2. Go to **Settings → Connect Account**
+3. Enter your **broker credentials**:
+   - MT4/MT5 Login (account number)
+   - Password
+   - Broker server name
+   - Platform (MT4 or MT5)
+4. Click **Connect** → MetaAPI provisions the account
+5. Once connected, start trading → real-time AI scores appear immediately!
+
+### Persistent Connections 🔄
+
+- After your trading account is linked, the backend maintains an active
+  streaming connection via MetaAPI.  You do **not** need to reconnect on every
+  login or after a server restart.
+- On service startup the application automatically re-establishes all
+  previously linked MetaAPI connections using the stored `meta_accounts`.
+- Status endpoints (`/api/v1/account/status` and `/api/v1/account/info`) report
+  whether an account is currently connected.
+
+> 💡 **Tip:** make sure `METAAPI_TOKEN` is set in your environment _before_
+> starting the backend; absence of the token triggers simulation mode and will
+> log a warning about MetaAPI being disabled.
+**Note**: MetaAPI handles all connectivity. No need to run MT4/MT5 locally.
 
 ## Development
 

@@ -2,14 +2,13 @@
 from typing import List, Dict,  Optional, Union
 
 Provides pre-trade scoring, post-trade review, and weekly report generation
-using Claude (deep analysis) and GPT-4o-mini (quick scoring).
+using GPT-4o-mini for all analyses.
 """
 
 import json
 import logging
 from typing import List, Dict,  Optional, Any
 
-import anthropic
 import openai
 
 from app.config import get_settings
@@ -24,6 +23,7 @@ def _build_pre_trade_prompt(
     market_context: Optional[dict],
     user_history: Optional[dict],
     behavioral_flags: Optional[List[dict]],
+    open_positions: Optional[List[dict]] = None,
 ) -> str:
     """Build a comprehensive prompt for pre-trade AI analysis.
 
@@ -32,6 +32,7 @@ def _build_pre_trade_prompt(
         market_context: Current market conditions (trend, ATR, key levels).
         user_history: Recent trading performance summary.
         behavioral_flags: Any behavioral alerts triggered.
+        open_positions: List of other currently open trades for this user.
 
     Returns:
         Formatted prompt string.
@@ -72,6 +73,16 @@ Winning Streak: {user_history.get('streak', 'N/A')}"""
     else:
         history_text = "  No history available"
 
+    if open_positions:
+        pos_lines = [
+            f"  {i+1}. {p.get('symbol')} {p.get('direction')} @ {p.get('entry_price')} "
+            f"| SL: {p.get('sl', 'none')} | TP: {p.get('tp', 'none')} | Lot: {p.get('lot_size')}"
+            for i, p in enumerate(open_positions)
+        ]
+        positions_text = f"Total open: {len(open_positions)}\n" + "\n".join(pos_lines)
+    else:
+        positions_text = "  None"
+
     return f"""You are an expert trading analyst AI co-pilot. Analyze this trade setup and provide a quality score from 1-10.
 
 ## TRADE SETUP
@@ -92,12 +103,15 @@ R:R Ratio: {trade.get('rr_ratio', 'N/A')}
 ## BEHAVIORAL FLAGS
 {flags_text}
 
+## OTHER OPEN POSITIONS (PORTFOLIO CONTEXT)
+{positions_text}
+
 ## SCORING CRITERIA
 - 9-10: Excellent setup — strong trend alignment, good R:R, clean levels, no flags
 - 7-8: Good setup — mostly aligned, minor concerns
 - 5-6: Mediocre — some alignment issues or missing context
-- 3-4: Poor — trading against trend, bad R:R, or behavioral flags present
-- 1-2: Terrible — multiple red flags, high probability of loss
+- 3-4: Poor — trading against trend, bad R:R, behavioral flags, or adding to already over-exposed positions
+- 1-2: Terrible — multiple red flags, high probability of loss (e.g. 3+ correlated same-direction trades with no hedging)
 
 ## RESPONSE FORMAT
 Respond ONLY with valid JSON (no markdown, no code fences):
@@ -257,6 +271,7 @@ async def analyze_pre_trade(
     market_context: Optional[dict] = None,
     user_history: Optional[dict] = None,
     behavioral_flags: Optional[List[dict]] = None,
+    open_positions: Optional[List[dict]] = None,
 ) -> TradeScore:
     """Run pre-trade AI analysis and return a quality score.
 
@@ -267,11 +282,28 @@ async def analyze_pre_trade(
         market_context: Current market conditions.
         user_history: Recent trading performance.
         behavioral_flags: Any behavioral alerts.
+        open_positions: Other currently open trades for this user.
 
     Returns:
         TradeScore with score, issues, and suggestions.
     """
-    prompt = _build_pre_trade_prompt(trade, market_context, user_history, behavioral_flags)
+    # Check if API key is configured
+    if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your-openai-api-key-here":
+        logger.warning("⚠️ OpenAI API key not configured — using mock score")
+        flag_count = len(behavioral_flags or [])
+        score = max(1, min(10, 6 - (flag_count // 2)))  # Reduce score for each behavioral flag
+        return TradeScore(
+            score=score,
+            confidence=0.6,
+            summary="Mock analysis (API key not configured)",
+            issues=[f.get("message", "") for f in (behavioral_flags or [])],
+            strengths=["Trade has defined risk/reward"],
+            suggestion="Configure OpenAI API key for full AI analysis",
+            market_alignment="Unable to assess",
+            risk_assessment=f"Risk = {trade.get('sl', 'N/A')}, Reward = {trade.get('tp', 'N/A')}",
+        )
+    
+    prompt = _build_pre_trade_prompt(trade, market_context, user_history, behavioral_flags, open_positions)
 
     try:
         client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -313,11 +345,188 @@ async def analyze_pre_trade(
     )
 
 
+def _build_modified_trade_prompt(trade: dict, new_sl: Any, new_tp: Any, original_analysis: Optional[dict], market_context: Optional[dict] = None) -> str:
+    """Build a prompt for analyzing a modified (SL/TP updated) open trade.
+
+    Args:
+        trade: Current trade data.
+        new_sl: Updated stop loss value.
+        new_tp: Updated take profit value.
+        original_analysis: The AI analysis from when the trade was opened.
+        market_context: Current live market conditions.
+
+    Returns:
+        Formatted prompt string.
+    """
+    orig_text = ""
+    if original_analysis:
+        # If original_analysis itself contains an open_thesis, use that as the entry thesis
+        thesis = original_analysis.get("open_thesis") or original_analysis
+        orig_text = f"""
+Original Score: {thesis.get('score', 'N/A')}/10
+Original Thesis: {thesis.get('summary', 'N/A')}
+Original Strengths: {', '.join(thesis.get('strengths', []))}
+Original Issues: {', '.join(thesis.get('issues', []))}
+Original Suggestion: {thesis.get('suggestion', 'N/A')}
+Market Alignment at Entry: {thesis.get('market_alignment', 'N/A')}
+Risk Assessment at Entry: {thesis.get('risk_assessment', 'N/A')}"""
+    else:
+        orig_text = "  No original analysis available"
+
+    market_text = ""
+    if market_context and market_context.get("current_price"):
+        market_text = f"""
+Current Price: {market_context.get('current_price', 'N/A')}
+Trend (EMA20): {market_context.get('ema20_trend', 'N/A')}
+Trend (EMA50): {market_context.get('ema50_trend', 'N/A')}
+Trend (EMA200): {market_context.get('ema200_trend', 'N/A')}
+ATR(14): {market_context.get('atr', 'N/A')}
+Key Support: {market_context.get('support_levels', 'N/A')}
+Key Resistance: {market_context.get('resistance_levels', 'N/A')}
+Session: {market_context.get('session', 'N/A')}
+Daily Range Used: {market_context.get('daily_range_percent', 'N/A')}%"""
+    else:
+        market_text = "  Market context unavailable — evaluate based on original thesis"
+
+    old_sl = trade.get('sl')
+    old_tp = trade.get('tp')
+    entry = trade.get('entry_price', 0)
+
+    old_rr = "N/A"
+    new_rr = "N/A"
+    if old_sl and old_tp and entry:
+        risk = abs(entry - old_sl)
+        reward = abs(old_tp - entry)
+        if risk > 0:
+            old_rr = round(reward / risk, 2)
+    if new_sl and new_tp and entry:
+        risk = abs(entry - new_sl)
+        reward = abs(new_tp - entry)
+        if risk > 0:
+            new_rr = round(reward / risk, 2)
+
+    return f"""You are an expert trading analyst AI co-pilot. A trader has MODIFIED an open trade. \
+Evaluate whether this modification is sound, using the original trade thesis and current market context.
+
+## OPEN TRADE
+Symbol: {trade.get('symbol', 'N/A')}
+Direction: {trade.get('direction', 'N/A')}
+Entry Price: {entry}
+
+## MODIFICATION
+Previous Stop Loss: {old_sl} → New Stop Loss: {new_sl}
+Previous Take Profit: {old_tp} → New Take Profit: {new_tp}
+Previous R:R: {old_rr} → New R:R: {new_rr}
+
+## CURRENT MARKET CONTEXT
+{market_text}
+
+## ORIGINAL TRADE THESIS (at open)
+{orig_text}
+
+## SCORING CRITERIA
+Score the UPDATED setup (re-evaluate the whole trade given the change):
+- 9-10: Modification improves the setup — tighter SL, better R:R, or locking in profit
+- 7-8: Good modification — neutral to slightly better
+- 5-6: Questionable change — widening SL, reducing R:R without clear reason
+- 3-4: Poor modification — moving SL against trade logic, chasing loss
+- 1-2: Dangerous modification — removing SL, gambling behaviour
+
+## RESPONSE FORMAT
+Respond ONLY with valid JSON (no markdown, no code fences):
+{{
+    "score": <1-10>,
+    "confidence": <0.0-1.0>,
+    "summary": "<one-line summary of the modification quality>",
+    "issues": ["<issue1>", "<issue2>"],
+    "strengths": ["<strength1>", "<strength2>"],
+    "suggestion": "<specific actionable suggestion>",
+    "market_alignment": "<how the modified setup aligns with current market structure and original thesis>",
+    "risk_assessment": "<updated risk assessment after modification>"
+}}
+
+Stay grounded in the original thesis. If market context is unavailable, rely on the entry thesis. Praise modifications that honour the original plan and flag those that deviate."""
+
+
+async def analyze_trade_modified(
+    trade: dict,
+    new_sl: Any,
+    new_tp: Any,
+    original_analysis: Optional[dict] = None,
+    market_context: Optional[dict] = None,
+) -> TradeScore:
+    """Run AI analysis on a modified (SL/TP changed) open trade.
+
+    Preserves and references the original open-trade thesis to evaluate
+    whether the modification is sound.
+
+    Args:
+        trade: Current trade data dict.
+        new_sl: The updated stop loss.
+        new_tp: The updated take profit.
+        original_analysis: The ai_analysis dict stored when the trade was opened.
+        market_context: Current live market conditions.
+
+    Returns:
+        TradeScore reflecting the updated trade setup.
+    """
+    if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your-openai-api-key-here":
+        logger.warning("⚠️ OpenAI API key not configured — using mock modified-trade score")
+        return TradeScore(
+            score=5,
+            confidence=0.5,
+            summary="Mock analysis for modified trade (API key not configured)",
+            issues=[],
+            strengths=["Trade still has defined levels"],
+            suggestion="Configure OpenAI API key for full AI analysis",
+            market_alignment="Unable to assess",
+            risk_assessment=f"Updated SL={new_sl}, TP={new_tp}",
+        )
+
+    prompt = _build_modified_trade_prompt(trade, new_sl, new_tp, original_analysis, market_context)
+
+    try:
+        client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a professional trading analyst. Respond only with valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=1000,
+        )
+        result = _parse_json_response(response.choices[0].message.content or "{}")
+    except Exception as e:
+        logger.error(f"OpenAI API error in modified-trade analysis: {e}")
+        result = {
+            "score": 5,
+            "confidence": 0.3,
+            "summary": "AI analysis unavailable for modification — review manually.",
+            "issues": [],
+            "strengths": [],
+            "suggestion": "AI service temporarily unavailable. Verify modification aligns with your original plan.",
+            "market_alignment": "Unable to assess — AI unavailable",
+            "risk_assessment": f"Updated SL={new_sl}, TP={new_tp}",
+        }
+
+    return TradeScore(
+        score=result.get("score", 5),
+        confidence=result.get("confidence", 0.5),
+        summary=result.get("summary", "Analysis unavailable"),
+        issues=result.get("issues", []),
+        strengths=result.get("strengths", []),
+        suggestion=result.get("suggestion", "No suggestion available"),
+        market_alignment=result.get("market_alignment", "Unknown"),
+        risk_assessment=result.get("risk_assessment", "Unknown"),
+    )
+
+
 async def analyze_post_trade(
     trade: dict,
     pre_score: Optional[dict] = None,
 ) -> TradeReview:
-    """Run post-trade AI review using Claude for deeper analysis.
+    """Run post-trade AI review using OpenAI for deeper analysis.
 
     Args:
         trade: Completed trade data.
@@ -326,21 +535,36 @@ async def analyze_post_trade(
     Returns:
         TradeReview with execution score, lessons, and emotional assessment.
     """
+    # Check if API key is configured
+    if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your-openai-api-key-here":
+        logger.warning("⚠️ OpenAI API key not configured — using mock review")
+        is_winner = (trade.get("pnl") or 0) > 0
+        return TradeReview(
+            execution_score=7 if is_winner else 4,
+            plan_adherence=6,
+            summary=f"Mock review: {'Winning' if is_winner else 'Losing'} trade (API key not configured)",
+            lessons=["Configure OpenAI API key for full AI analysis"],
+            what_went_well=["Trade was closed"] if is_winner else [],
+            what_to_improve=["Set up OpenAI API key"],
+            emotional_assessment="Unable to assess — API key not configured",
+        )
+    
     prompt = _build_post_trade_prompt(trade, pre_score)
 
     try:
-        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1500,
+        client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
             messages=[
+                {"role": "system", "content": "You are a professional trading analyst. Respond only with valid JSON."},
                 {"role": "user", "content": prompt},
             ],
+            temperature=0.3,
+            max_tokens=1500,
         )
-        response_text = response.content[0].text if response.content else "{}"
-        result = _parse_json_response(response_text)
+        result = _parse_json_response(response.choices[0].message.content or "{}")
     except Exception as e:
-        logger.error(f"Anthropic API error in post-trade review: {e}")
+        logger.error(f"OpenAI API error in post-trade review: {e}")
         is_winner = (trade.get("pnl") or 0) > 0
         result = {
             "execution_score": 5,
@@ -368,7 +592,7 @@ async def generate_weekly_report(
     trades: List[dict],
     stats: dict,
 ) -> WeeklyReport:
-    """Generate a comprehensive weekly performance report using Claude.
+    """Generate a comprehensive weekly performance report using OpenAI.
 
     Args:
         user_id: User UUID string.
@@ -378,21 +602,42 @@ async def generate_weekly_report(
     Returns:
         WeeklyReport with grades, patterns, and action items.
     """
+    # Check if API key is configured
+    if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY == "your-openai-api-key-here":
+        logger.warning("⚠️ OpenAI API key not configured — using mock weekly report")
+        return WeeklyReport(
+            period=stats.get("period", "N/A"),
+            overall_grade="N/A",
+            summary="Configure OpenAI API key for full AI analysis",
+            total_trades=stats.get("total_trades", 0),
+            win_rate=stats.get("win_rate", 0),
+            total_pnl=stats.get("total_pnl", 0),
+            total_r=stats.get("total_r", 0),
+            best_trade_summary="N/A",
+            worst_trade_summary="N/A",
+            recurring_patterns=[],
+            strengths=[],
+            areas_for_improvement=[],
+            action_items=["Set up OpenAI API key for weekly reports"],
+            emotional_profile="Unable to assess — API key not configured",
+        )
+    
     prompt = _build_weekly_report_prompt(trades, stats)
 
     try:
-        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2000,
+        client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
             messages=[
+                {"role": "system", "content": "You are a professional trading performance coach. Respond only with valid JSON."},
                 {"role": "user", "content": prompt},
             ],
+            temperature=0.3,
+            max_tokens=2000,
         )
-        response_text = response.content[0].text if response.content else "{}"
-        result = _parse_json_response(response_text)
+        result = _parse_json_response(response.choices[0].message.content or "{}")
     except Exception as e:
-        logger.error(f"Anthropic API error in weekly report: {e}")
+        logger.error(f"OpenAI API error in weekly report: {e}")
         result = {
             "period": stats.get("period", "N/A"),
             "overall_grade": "N/A",

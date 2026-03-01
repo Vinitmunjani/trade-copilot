@@ -22,6 +22,51 @@ from app.services.stats_service import get_user_history_summary
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 
+# Minimum trades required for meaningful analytics
+MIN_TRADES_FOR_ANALYTICS = 10
+
+
+@router.get("/readiness")
+async def check_analytics_readiness(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check if user has enough trade history for analytics.
+    
+    Returns:
+        - has_enough_history: Boolean indicating readiness
+        - total_closed_trades: Number of closed trades 
+        - trades_needed: Number of additional trades needed
+        - min_required: Minimum trades needed (10)
+        - status: Status message
+    """
+    from sqlalchemy import func
+    
+    result = await db.execute(
+        select(func.count(Trade.id)).where(
+            and_(
+                Trade.user_id == current_user.id,
+                Trade.status == TradeStatus.CLOSED,
+            )
+        )
+    )
+    total_closed = result.scalar() or 0
+    has_enough = total_closed >= MIN_TRADES_FOR_ANALYTICS
+    trades_needed = max(0, MIN_TRADES_FOR_ANALYTICS - total_closed)
+    
+    message = f"You have {total_closed} closed trade(s). " + (
+        "✓ Ready for analytics!" if has_enough else f"Complete {trades_needed} more trade(s) for analytics."
+    )
+    
+    return {
+        "has_enough_history": has_enough,
+        "total_closed_trades": total_closed,
+        "trades_needed": trades_needed,
+        "min_required": MIN_TRADES_FOR_ANALYTICS,
+        "status": "ready" if has_enough else "insufficient_history",
+        "message": message,
+    }
+
 
 @router.post("/rescore/{trade_id}")
 async def rescore_trade(
@@ -62,12 +107,12 @@ async def rescore_trade(
 
         # Behavioral checks
         alerts = await run_all_checks(db, user_id, trade, rules)
-        trade.behavioral_flags = [a.dict() for a in alerts]
+        trade.behavioral_flags = [a.model_dump() for a in alerts]
 
         # Market context + history
         redis_client = await get_redis()
         market = await get_market_context(trade.symbol, redis_client)
-        history = await get_user_history_summary(db, user_id)
+        history = await get_user_history_summary(db, current_user.id)
 
         trade_dict = {
             "symbol": trade.symbol,
@@ -81,14 +126,14 @@ async def rescore_trade(
         if trade.sl and trade.tp and trade.entry_price:
             risk = abs(trade.entry_price - trade.sl)
             reward = abs(trade.tp - trade.entry_price)
-            trade_Dict["rr_ratio"] = round(reward / risk, 2) if risk > 0 else None
+            trade_dict["rr_ratio"] = round(reward / risk, 2) if risk > 0 else None
 
         score = await analyze_pre_trade(
             trade_dict, market, history,
-            [a.dict() for a in alerts],
+            [a.model_dump() for a in alerts],
         )
         trade.ai_score = score.score
-        trade.ai_analysis = score.dict()
+        trade.ai_analysis = score.model_dump()
         await db.flush()
 
         return {
@@ -118,7 +163,7 @@ async def rescore_trade(
         }
 
         review = await analyze_post_trade(trade_dict, trade.ai_analysis)
-        trade.ai_review = review.dict()
+        trade.ai_review = review.model_dump()
         await db.flush()
 
         return {
@@ -260,11 +305,64 @@ async def get_patterns(
     # Sort: negative patterns first (most impactful), then by frequency
     patterns.sort(key=lambda p: (0 if p.impact == "negative" else 1, -p.frequency))
 
-    return PatternsResponse(
+    response = PatternsResponse(
         patterns=patterns,
         analysis_period_days=days,
         total_trades_analyzed=len(trades),
     )
+    return response
+
+
+@router.get("/alerts")
+async def get_alerts(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return a flat list of behavioral alerts derived from recent trades.
+
+    Each trade's `behavioral_flags` field is exploded into individual alerts
+    with a timestamp (using close_time or open_time) and pattern details.
+    """
+    from uuid import uuid4
+
+    result = await db.execute(
+        select(Trade)
+        .where(
+            and_(
+                Trade.user_id == current_user.id,
+                Trade.behavioral_flags.isnot(None),
+            )
+        )
+        .order_by(Trade.close_time.desc())
+        .limit(100)
+    )
+    trades = result.scalars().all()
+
+    alerts: list = []
+    for t in trades:
+        if not t.behavioral_flags:
+            continue
+        for flag in t.behavioral_flags:
+            if isinstance(flag, dict):
+                pattern_type = flag.get("flag") or flag.get("type") or "unknown"
+                message = flag.get("message", "")
+                severity = flag.get("severity", "medium")
+            else:
+                pattern_type = str(flag)
+                message = str(flag)
+                severity = "medium"
+
+            alerts.append({
+                "id": str(uuid4()),
+                "trade_id": str(t.id),
+                "pattern_type": pattern_type,
+                "message": message,
+                "severity": severity,
+                "created_at": (t.close_time or t.open_time).isoformat() if (t.close_time or t.open_time) else None,
+                "acknowledged": False,
+            })
+
+    return alerts
 
 
 @router.get("/readiness")

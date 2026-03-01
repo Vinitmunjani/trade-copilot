@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config, create_async_engine
 # Import application models and config so Alembic can detect schema changes
 from app.config import get_settings
 from app.database import Base
-from app.models import User, Trade, DailyStats, TradingRules  # noqa: F401 — ensure models are registered
+from app.models import User, Trade, DailyStats, TradingRules, TradeLog  # noqa: F401 — ensure models are registered
 
 settings = get_settings()
 

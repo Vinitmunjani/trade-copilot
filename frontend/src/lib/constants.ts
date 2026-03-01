@@ -1,6 +1,6 @@
 // API endpoint - routes to AWS backend
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://3.143.147.98:8000/api/v1";
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://3.143.147.98:8000/ws";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/api/v1/ws/trades";
 
 export const SESSIONS = [
   { value: "london", label: "London", hours: "08:00-16:00 GMT" },
@@ -33,6 +33,7 @@ export const PATTERN_LABELS: Record<string, string> = {
   size_violation: "Size Violation",
   emotional_trading: "Emotional Trading",
   chasing_losses: "Chasing Losses",
+  missing_sl_tp: "No SL/TP Set",
 };
 
 export const PATTERN_ICONS: Record<string, string> = {
@@ -46,4 +47,5 @@ export const PATTERN_ICONS: Record<string, string> = {
   size_violation: "Scale",
   emotional_trading: "Heart",
   chasing_losses: "TrendingDown",
+  missing_sl_tp: "ShieldOff",
 };

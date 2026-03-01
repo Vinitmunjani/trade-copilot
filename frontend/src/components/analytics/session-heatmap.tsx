@@ -1,40 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, TrendingUp, TrendingDown } from "lucide-react";
+import { Calendar, AlertCircle } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
-
-const mockData = {
-  london: {
-    Mon: { pnl: 245, trades: 3 },
-    Tue: { pnl: 180, trades: 2 },
-    Wed: { pnl: -120, trades: 4 },
-    Thu: { pnl: 320, trades: 3 },
-    Fri: { pnl: 95, trades: 2 },
-  },
-  new_york: {
-    Mon: { pnl: 185, trades: 2 },
-    Tue: { pnl: -85, trades: 3 },
-    Wed: { pnl: 240, trades: 2 },
-    Thu: { pnl: 160, trades: 2 },
-    Fri: { pnl: -45, trades: 1 },
-  },
-  tokyo: {
-    Mon: { pnl: -120, trades: 2 },
-    Tue: { pnl: 0, trades: 0 },
-    Wed: { pnl: -95, trades: 1 },
-    Thu: { pnl: 0, trades: 0 },
-    Fri: { pnl: 45, trades: 1 },
-  },
-  sydney: {
-    Mon: { pnl: 0, trades: 0 },
-    Tue: { pnl: 85, trades: 1 },
-    Wed: { pnl: 0, trades: 0 },
-    Thu: { pnl: -60, trades: 1 },
-    Fri: { pnl: 0, trades: 0 },
-  },
-};
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const sessions = [
@@ -73,7 +42,74 @@ const getCellColor = (pnl: number, trades: number) => {
   return "bg-slate-800 border-slate-700";
 };
 
-export function SessionHeatmap() {
+interface SessionHeatmapProps {
+  trades?: Array<any>;
+}
+
+export function SessionHeatmap({ trades = [] }: SessionHeatmapProps) {
+  // Compute heatmap data from real trades
+  const heatmapData = useMemo(() => {
+    const data: Record<string, Record<string, { pnl: number; trades: number }>> = {
+      london: { Mon: { pnl: 0, trades: 0 }, Tue: { pnl: 0, trades: 0 }, Wed: { pnl: 0, trades: 0 }, Thu: { pnl: 0, trades: 0 }, Fri: { pnl: 0, trades: 0 } },
+      new_york: { Mon: { pnl: 0, trades: 0 }, Tue: { pnl: 0, trades: 0 }, Wed: { pnl: 0, trades: 0 }, Thu: { pnl: 0, trades: 0 }, Fri: { pnl: 0, trades: 0 } },
+      tokyo: { Mon: { pnl: 0, trades: 0 }, Tue: { pnl: 0, trades: 0 }, Wed: { pnl: 0, trades: 0 }, Thu: { pnl: 0, trades: 0 }, Fri: { pnl: 0, trades: 0 } },
+      sydney: { Mon: { pnl: 0, trades: 0 }, Tue: { pnl: 0, trades: 0 }, Wed: { pnl: 0, trades: 0 }, Thu: { pnl: 0, trades: 0 }, Fri: { pnl: 0, trades: 0 } },
+    };
+
+    // Map trades to sessions and days
+    if (trades && trades.length > 0) {
+      trades.forEach((trade: any) => {
+        if (!trade.closed_at) return;
+        
+        const date = new Date(trade.closed_at);
+        const day = date.toLocaleDateString('en-US', { weekday: 'short' });
+        const hour = date.getHours();
+        
+        // Determine session based on hour (UTC)
+        let session = 'london';
+        if (hour >= 0 && hour < 8) session = 'tokyo';
+        else if (hour >= 8 && hour < 12) session = 'london';
+        else if (hour >= 12 && hour < 21) session = 'new_york';
+        else session = 'sydney';
+        
+        if (!data[session][day as any]) {
+          data[session][day as any] = { pnl: 0, trades: 0 };
+        }
+        
+        data[session][day as any].pnl += trade.pnl || 0;
+        data[session][day as any].trades += 1;
+      });
+    }
+
+    return data;
+  }, [trades]);
+
+  // Check if there's any data
+  const hasData = useMemo(() => {
+    return trades && trades.length > 0 && Object.values(heatmapData).some(session =>
+      Object.values(session).some(day => day.trades > 0)
+    );
+  }, [trades, heatmapData]);
+
+  if (!hasData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-emerald-400" />
+            Session Performance Heatmap
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+            <AlertCircle className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm">No data available yet</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -105,8 +141,8 @@ export function SessionHeatmap() {
                   {session.label}
                 </div>
                 {days.map((day) => {
-                  const data = mockData[session.key as keyof typeof mockData][day as keyof typeof mockData.london];
-                  const cellColor = getCellColor(data.pnl, data.trades);
+                  const cellData = heatmapData[session.key as keyof typeof heatmapData][day as keyof typeof heatmapData.london];
+                  const cellColor = getCellColor(cellData.pnl, cellData.trades);
                   
                   return (
                     <div
@@ -115,15 +151,15 @@ export function SessionHeatmap() {
                         "h-16 rounded-lg border flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-105",
                         cellColor
                       )}
-                      title={`${session.label} ${day}: ${formatCurrency(data.pnl)} (${data.trades} trades)`}
+                      title={`${session.label} ${day}: ${formatCurrency(cellData.pnl)} (${cellData.trades} trades)`}
                     >
-                      {data.trades > 0 ? (
+                      {cellData.trades > 0 ? (
                         <>
                           <div className="text-xs font-bold">
-                            {formatCurrency(data.pnl)}
+                            {formatCurrency(cellData.pnl)}
                           </div>
                           <div className="text-[10px] opacity-75">
-                            {data.trades} trade{data.trades !== 1 ? 's' : ''}
+                            {cellData.trades} trade{cellData.trades !== 1 ? 's' : ''}
                           </div>
                         </>
                       ) : (
@@ -156,3 +192,4 @@ export function SessionHeatmap() {
     </Card>
   );
 }
+

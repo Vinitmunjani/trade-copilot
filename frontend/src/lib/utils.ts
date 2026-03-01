@@ -48,11 +48,17 @@ export function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
 
-export function formatDuration(minutes: number | null): string {
-  if (minutes === null) return "—";
-  if (minutes < 60) return `${minutes}m`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
+/** Formats a duration given in whole seconds into a human-readable string. */
+export function formatDuration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return "—";
+  if (seconds < 60) return `${seconds}s`;
+  const totalMinutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (totalMinutes < 60) {
+    return remainingSeconds > 0 ? `${totalMinutes}m ${remainingSeconds}s` : `${totalMinutes}m`;
+  }
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 

@@ -14,14 +14,14 @@ interface OpenTradesProps {
 export function OpenTrades({ trades }: OpenTradesProps) {
   if (trades.length === 0) {
     return (
-      <Card>
+      <Card className="border-white/5">
         <CardHeader>
           <CardTitle className="text-base">Open Trades</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+          <div className="flex flex-col items-center justify-center py-8 text-muted">
             <p className="text-sm">No open trades</p>
-            <p className="text-xs mt-1">Trades will appear here in real-time</p>
+            <p className="mt-1 text-xs">Trades will appear here in real-time</p>
           </div>
         </CardContent>
       </Card>
@@ -29,11 +29,11 @@ export function OpenTrades({ trades }: OpenTradesProps) {
   }
 
   return (
-    <Card>
+    <Card className="border-white/5">
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-base">
           Open Trades
-          <span className="text-xs font-normal text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+          <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs font-normal text-muted">
             {trades.length}
           </span>
         </CardTitle>
@@ -42,37 +42,39 @@ export function OpenTrades({ trades }: OpenTradesProps) {
         {trades.map((trade) => (
           <div
             key={trade.id}
-            className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-800 hover:border-slate-700 transition-colors"
+            className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/5 px-3 py-3 transition hover:border-white/20"
           >
             <div className="flex items-center gap-3">
               {/* Direction Icon */}
               <div
                 className={cn(
-                  "h-8 w-8 rounded-full flex items-center justify-center",
-                  trade.direction === "BUY" ? "bg-emerald-500/10" : "bg-red-500/10"
+                  "flex h-10 w-10 items-center justify-center rounded-2xl",
+                  trade.direction === "BUY"
+                    ? "border border-accent/30 bg-accent/10 text-accent"
+                    : "border border-danger/30 bg-danger/10 text-danger"
                 )}
               >
                 {trade.direction === "BUY" ? (
-                  <ArrowUpRight className="h-4 w-4 text-emerald-400" />
+                  <ArrowUpRight className="h-4 w-4" />
                 ) : (
-                  <ArrowDownRight className="h-4 w-4 text-red-400" />
+                  <ArrowDownRight className="h-4 w-4" />
                 )}
               </div>
 
               {/* Symbol & Direction */}
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-100">{trade.symbol}</span>
+                  <span className="font-semibold text-foreground">{trade.symbol}</span>
                   <span
                     className={cn(
                       "text-xs font-medium",
-                      trade.direction === "BUY" ? "text-emerald-400" : "text-red-400"
+                      trade.direction === "BUY" ? "text-accent" : "text-danger"
                     )}
                   >
                     {trade.direction}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted">
                   Entry: {formatPrice(trade.entry_price)}
                 </p>
               </div>
@@ -81,21 +83,21 @@ export function OpenTrades({ trades }: OpenTradesProps) {
             <div className="flex items-center gap-4">
               {/* Flags */}
               {trade.flags.length > 0 && (
-                <div className="flex items-center gap-1">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-                  <span className="text-xs text-amber-400">{trade.flags.length}</span>
+                <div className="flex items-center gap-1 text-amber-300">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span className="text-xs">{trade.flags.length}</span>
                 </div>
               )}
 
               {/* AI Score */}
-              {trade.ai_score && <AiScoreBadge score={trade.ai_score.score} />}
+              {trade.ai_score && <AiScoreBadge score={trade.ai_score} />}
 
               {/* P&L */}
               <div className="text-right">
                 <p
                   className={cn(
-                    "font-semibold text-sm animate-pulse",
-                    (trade.pnl || 0) >= 0 ? "text-emerald-400" : "text-red-400"
+                    "text-sm font-semibold",
+                    (trade.pnl || 0) >= 0 ? "text-accent" : "text-danger"
                   )}
                 >
                   {formatCurrency(trade.pnl || 0)}

@@ -26,9 +26,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.post<any>("/auth/login", null, {
-        params: { email, password },
-      });
+      const response = await api.post<any>("/auth/login", { email, password });
       const data = response.data;
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user || { id: data.access_token, email }));
@@ -39,7 +37,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
       });
     } catch (err: any) {
-      const message = err.response?.data?.detail || "Login failed";
+      console.error("Login error:", err.response?.data);
+      let message = err.response?.data?.detail;
+      if (typeof message === "object") {
+        message = JSON.stringify(message);
+      }
+      message = message || "Login failed";
       set({ error: message, isLoading: false });
       throw new Error(message);
     }
@@ -48,10 +51,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   register: async (name: string, email: string, password: string, confirm_password: string) => {
     set({ isLoading: true, error: null });
     try {
-      // Backend only needs email, password, confirm_password
-      const response = await api.post<any>("/auth/register", null, {
-        params: { email, password, confirm_password },
-      });
+      // Backend only needs email, password, confirm_password (confirm_password might not be used by backend but safe to send)
+      const response = await api.post<any>("/auth/register", { email, password, confirm_password });
       const data = response.data;
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user || { id: data.access_token, email }));
@@ -62,7 +63,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
       });
     } catch (err: any) {
-      const message = err.response?.data?.detail || "Registration failed";
+      console.error("Registration error:", err.response?.data);
+      let message = err.response?.data?.detail;
+      if (typeof message === "object") {
+        message = JSON.stringify(message);
+      }
+      message = message || "Registration failed";
       set({ error: message, isLoading: false });
       throw new Error(message);
     }

@@ -26,6 +26,7 @@ class User(Base):
     mt_login: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     mt_server: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     mt_platform: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, default="mt5")
+    mt_last_heartbeat: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     settings: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True, default=dict)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -39,3 +40,5 @@ class User(Base):
     trades = relationship("Trade", back_populates="user", lazy="selectin")
     trading_rules = relationship("TradingRules", back_populates="user", uselist=False, lazy="selectin")
     daily_stats = relationship("DailyStats", back_populates="user", lazy="selectin")
+    # New relationship: one user can have many MetaAPI-linked trading accounts
+    meta_accounts = relationship("MetaAccount", back_populates="user", lazy="selectin")

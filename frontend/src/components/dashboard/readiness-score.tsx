@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface ReadinessScoreProps {
   score: number;
@@ -12,9 +13,9 @@ export function ReadinessScore({ score }: ReadinessScoreProps) {
   const percentage = clampedScore / 10;
 
   const getColor = (s: number) => {
-    if (s <= 3) return { stroke: "#ef4444", text: "text-red-400", label: "Poor" };
-    if (s <= 6) return { stroke: "#f59e0b", text: "text-amber-400", label: "Fair" };
-    return { stroke: "#10b981", text: "text-emerald-400", label: "Good" };
+    if (s <= 3) return { stroke: "hsl(var(--danger))", text: "text-danger", label: "Stressed" };
+    if (s <= 6) return { stroke: "hsl(38 92% 55%)", text: "text-amber-300", label: "Warming up" };
+    return { stroke: "hsl(var(--accent))", text: "text-accent", label: "Locked in" };
   };
 
   const { stroke, text, label } = getColor(clampedScore);
@@ -23,26 +24,25 @@ export function ReadinessScore({ score }: ReadinessScoreProps) {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - percentage);
 
+  const glowColor =
+    clampedScore > 6 ? "bg-accent/20" : clampedScore > 3 ? "bg-amber-400/15" : "bg-danger/20";
+
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <Card className="relative overflow-hidden border-white/5 bg-gradient-to-br from-surface via-surface-muted to-surface-contrast text-center">
+      <div className="pointer-events-none absolute inset-0 opacity-70">
+        <div className={cn("absolute inset-y-0 left-0 w-2/3 blur-[80px]", glowColor)} />
+      </div>
+      <CardHeader className="relative pb-2">
         <CardTitle className="text-base">Readiness Score</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col items-center justify-center pb-6">
+      <CardContent className="relative flex flex-col items-center justify-center pb-6">
         <div className="relative w-40 h-40">
           <svg
             className="w-40 h-40 transform -rotate-90"
             viewBox="0 0 140 140"
           >
             {/* Background circle */}
-            <circle
-              cx="70"
-              cy="70"
-              r={radius}
-              fill="none"
-              stroke="#1e293b"
-              strokeWidth="10"
-            />
+            <circle cx="70" cy="70" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="10" />
             {/* Progress circle */}
             <circle
               cx="70"
@@ -60,12 +60,13 @@ export function ReadinessScore({ score }: ReadinessScoreProps) {
           {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className={`text-4xl font-bold ${text}`}>{clampedScore}</span>
-            <span className="text-xs text-slate-400">/10</span>
+            <span className="text-xs text-muted">/10</span>
           </div>
         </div>
-        <p className={`text-sm font-medium mt-2 ${text}`}>{label}</p>
-        <p className="text-xs text-slate-500 mt-1">Based on recent behavior</p>
+        <p className={`mt-3 text-sm font-medium ${text}`}>{label}</p>
+        <p className="mt-1 text-xs text-muted">Based on recent behavior</p>
       </CardContent>
     </Card>
   );
 }
+

@@ -91,8 +91,8 @@ export function TradeTable({ trades }: TradeTableProps) {
           bVal = b.duration_minutes ?? 0;
           break;
         case "ai_score":
-          aVal = a.ai_score?.score ?? 0;
-          bVal = b.ai_score?.score ?? 0;
+          aVal = a.ai_score ?? 0;
+          bVal = b.ai_score ?? 0;
           break;
       }
 
@@ -202,11 +202,11 @@ export function TradeTable({ trades }: TradeTableProps) {
               {formatR(trade.pnl_r)}
             </TableCell>
             <TableCell className="text-slate-400 text-xs">
-              {formatDuration(trade.duration_minutes)}
+              {formatDuration(trade.duration_seconds ?? (trade.duration_minutes !== null ? (trade.duration_minutes ?? 0) * 60 : null))}
             </TableCell>
             <TableCell>
               {trade.ai_score ? (
-                <AiScoreBadge score={trade.ai_score.score} />
+                <AiScoreBadge score={trade.ai_score} />
               ) : (
                 <span className="text-slate-600 text-xs">—</span>
               )}

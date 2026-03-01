@@ -62,6 +62,7 @@ async def lifespan(app: FastAPI):
 
     # Wire up WebSocket manager to MetaAPI service
     metaapi_service.set_ws_manager(ws_manager)
+    await metaapi_service.lifespan()
     logger.info("✅ WebSocket manager connected to MetaAPI service")
 
     logger.info("🟢 AI Trade Co-Pilot Backend ready!")
@@ -70,6 +71,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("🔴 Shutting down AI Trade Co-Pilot Backend...")
+    await metaapi_service.shutdown()
     await close_redis()
     await close_db()
     logger.info("👋 Shutdown complete")

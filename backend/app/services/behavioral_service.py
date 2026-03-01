@@ -289,8 +289,17 @@ def detect_bad_rr(
     Returns:
         BehavioralAlert if bad R:R detected, else None.
     """
-    if not trade.sl or not trade.tp or not trade.entry_price:
+    if not trade.entry_price:
         return None
+
+    if not trade.sl or not trade.tp:
+        return BehavioralAlert(
+            flag="bad_rr",
+            severity="high",
+            message="📉 No SL/TP set — risk/reward ratio is undefined. "
+                    "Always define your exit points before entering.",
+            details={"rr_ratio": None, "undefined": True},
+        )
 
     min_rr = rules.min_risk_reward if rules else 1.5
 
@@ -337,17 +346,41 @@ def detect_excessive_risk(
     Returns:
         BehavioralAlert if excessive risk detected, else None.
     """
-    if not trade.sl or not trade.entry_price or account_balance <= 0:
+    if not trade.entry_price or account_balance <= 0:
         return None
+
+    if not trade.sl:
+        return BehavioralAlert(
+            flag="excessive_risk",
+            severity="critical",
+            message="🚨 No stop loss set — position risk is unlimited. "
+                    "Set a stop loss to define your maximum loss.",
+            details={"risk_percent": None, "unlimited": True},
+        )
 
     max_risk = rules.max_risk_percent if rules else 2.0
 
-    # Calculate risk in account currency (simplified — assumes 1 lot = 100k units)
-    pip_value = trade.lot_size * 100000
-    if trade.direction == TradeDirection.BUY:
-        risk_amount = abs(trade.entry_price - trade.sl) * pip_value
+    # Calculate risk in account currency using the same 3-tier formula as the
+    # P&L fallback calculation so that all risk math is consistent.
+    #
+    # Tier 1 — Crypto / high-price (BTC, ETH, indices > $1 000):
+    #   1 standard lot = 1 coin/unit  →  risk = price_diff × lot_size  (direct USD)
+    # Tier 2 — Indices / metals / oil ($20 < price ≤ $1 000):
+    #   pip_size = 0.01, pip_value ≈ $10 per standard lot
+    # Tier 3 — Standard forex (price ≤ $20):
+    #   pip_size = 0.0001, pip_value = $10 per standard lot
+    sl_distance = abs(trade.entry_price - trade.sl)
+    entry = trade.entry_price
+    lot = trade.lot_size
+    if entry > 1000:
+        # Crypto / high-price instruments: 1 lot = 1 unit of base asset
+        risk_amount = sl_distance * lot
+    elif entry > 20:
+        # Indices, metals, oil
+        risk_amount = (sl_distance / 0.01) * 10.0 * lot
     else:
-        risk_amount = abs(trade.sl - trade.entry_price) * pip_value
+        # Standard forex pairs
+        risk_amount = (sl_distance / 0.0001) * 10.0 * lot
 
     risk_percent = (risk_amount / account_balance) * 100
 
@@ -538,6 +571,36 @@ async def detect_winner_cutting(
     return None
 
 
+def detect_missing_sl_tp(
+    trade: Trade,
+    rules: Optional[TradingRules],
+) -> Optional[BehavioralAlert]:
+    """Flag trades placed without a stop loss or take profit.
+
+    Args:
+        trade: Trade to evaluate.
+        rules: User's trading rules (unused but kept for consistent signature).
+
+    Returns:
+        BehavioralAlert if SL or TP is absent, else None.
+    """
+    missing = []
+    if not trade.sl:
+        missing.append("Stop Loss")
+    if not trade.tp:
+        missing.append("Take Profit")
+
+    if missing:
+        return BehavioralAlert(
+            flag="missing_sl_tp",
+            severity="critical",
+            message=f"🚨 Trade has no {' or '.join(missing)} set. "
+                    "This is unprotected risk — always define your exit before entering.",
+            details={"missing": missing},
+        )
+    return None
+
+
 async def run_all_checks(
     db: AsyncSession,
     user_id: str,
@@ -583,6 +646,10 @@ async def run_all_checks(
         alerts.append(winner_cut)
 
     # Sync checks
+    missing_sl_tp = detect_missing_sl_tp(trade, rules)
+    if missing_sl_tp:
+        alerts.append(missing_sl_tp)
+
     bad_rr = detect_bad_rr(trade, rules)
     if bad_rr:
         alerts.append(bad_rr)

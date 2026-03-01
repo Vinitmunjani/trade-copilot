@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AiAnalysisCard } from "./ai-analysis-card";
 import { AiScoreBadge } from "./ai-score-badge";
+import { PostTradeReviewCard } from "./post-trade-review-card";
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -172,7 +173,7 @@ export function TradeDetail({ trade }: TradeDetailProps) {
                   <p className="text-xs text-slate-400">Duration</p>
                   <p className="text-sm text-slate-300 flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {formatDuration(trade.duration_minutes)}
+                    {formatDuration(trade.duration_seconds ?? (trade.duration_minutes !== null ? (trade.duration_minutes ?? 0) * 60 : null))}
                   </p>
                 </div>
               </div>
@@ -181,8 +182,8 @@ export function TradeDetail({ trade }: TradeDetailProps) {
         </Card>
 
         {/* AI Analysis */}
-        {trade.ai_score ? (
-          <AiAnalysisCard score={trade.ai_score} />
+        {trade.ai_analysis ? (
+          <AiAnalysisCard analysis={trade.ai_analysis} score={trade.ai_score || 0} />
         ) : (
           <Card>
             <CardHeader>
@@ -200,6 +201,11 @@ export function TradeDetail({ trade }: TradeDetailProps) {
           </Card>
         )}
       </div>
+
+      {/* Post-Trade Review */}
+      {trade.ai_review && (
+        <PostTradeReviewCard review={trade.ai_review} />
+      )}
 
       {/* Behavioral Flags */}
       {trade.flags.length > 0 && (

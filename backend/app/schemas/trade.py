@@ -2,8 +2,8 @@ from typing import List, Dict,  Optional, Union
 """Pydantic schemas for trade operations."""
 
 import uuid
-from datetime import datetime
-from pydantic import BaseModel, Field
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field, model_validator
 
 
 class TradeBase(BaseModel):
@@ -55,6 +55,20 @@ class TradeResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def _compute_duration(self) -> "TradeResponse":
+        """Compute duration_seconds from open/close timestamps when the DB value is absent."""
+        if self.duration_seconds is None and self.open_time is not None and self.close_time is not None:
+            open_ts = self.open_time
+            close_ts = self.close_time
+            # Normalise tz-naive datetimes (stored as UTC in SQLite/Postgres)
+            if open_ts.tzinfo is None:
+                open_ts = open_ts.replace(tzinfo=timezone.utc)
+            if close_ts.tzinfo is None:
+                close_ts = close_ts.replace(tzinfo=timezone.utc)
+            self.duration_seconds = max(0, int((close_ts - open_ts).total_seconds()))
+        return self
 
 
 class TradeListResponse(BaseModel):

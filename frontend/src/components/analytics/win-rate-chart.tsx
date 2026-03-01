@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -13,36 +13,23 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { Target } from "lucide-react";
+import { Target, AlertCircle } from "lucide-react";
 
-const symbolData = [
-  { name: "EURUSD", winRate: 72, lossRate: 28, totalTrades: 18 },
-  { name: "GBPUSD", winRate: 65, lossRate: 35, totalTrades: 12 },
-  { name: "USDJPY", winRate: 58, lossRate: 42, totalTrades: 8 },
-  { name: "XAUUSD", winRate: 78, lossRate: 22, totalTrades: 15 },
-  { name: "NAS100", winRate: 55, lossRate: 45, totalTrades: 6 },
-];
-
-const sessionData = [
-  { name: "London", winRate: 75, lossRate: 25, totalTrades: 32 },
-  { name: "NY", winRate: 63, lossRate: 37, totalTrades: 28 },
-  { name: "Tokyo", winRate: 45, lossRate: 55, totalTrades: 9 },
-  { name: "Sydney", winRate: 60, lossRate: 40, totalTrades: 5 },
-];
-
-const dayData = [
-  { name: "Mon", winRate: 68, lossRate: 32, totalTrades: 15 },
-  { name: "Tue", winRate: 71, lossRate: 29, totalTrades: 17 },
-  { name: "Wed", winRate: 65, lossRate: 35, totalTrades: 12 },
-  { name: "Thu", winRate: 73, lossRate: 27, totalTrades: 14 },
-  { name: "Fri", winRate: 58, lossRate: 42, totalTrades: 16 },
-];
+interface WinRateChartProps {
+  data?: Array<{
+    name: string;
+    winRate: number;
+    lossRate: number;
+    totalTrades: number;
+  }>;
+  trades?: Array<any>;
+}
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm">
-        <p className="font-semibold text-slate-200">{label}</p>
+      <div className="bg-surface-muted border border-border/60 rounded-lg p-3 text-sm">
+        <p className="font-semibold text-foreground">{label}</p>
         <p className="text-emerald-400">
           Win Rate: {payload[0].value}% ({payload[0].payload.totalTrades} trades)
         </p>
@@ -53,19 +40,150 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export function WinRateChart() {
+export function WinRateChart({ data = [], trades = [] }: WinRateChartProps) {
   const [activeTab, setActiveTab] = useState("symbol");
+
+  // Compute all analytics from real trades
+  const computedData = useMemo(() => {
+    if (!trades || trades.length === 0) {
+      return {
+        symbol: [],
+        session: [],
+        day: [],
+        hasData: false,
+      };
+    }
+
+    // 1. By Symbol
+    const symbolStats: Record<string, { wins: number; losses: number; total: number }> = {};
+    trades.forEach((trade: any) => {
+      if (!symbolStats[trade.symbol]) {
+        symbolStats[trade.symbol] = { wins: 0, losses: 0, total: 0 };
+      }
+      symbolStats[trade.symbol].total++;
+      if ((trade.pnl || 0) > 0) {
+        symbolStats[trade.symbol].wins++;
+      } else {
+        symbolStats[trade.symbol].losses++;
+      }
+    });
+
+    const symbolData = Object.entries(symbolStats)
+      .map(([symbol, stats]) => ({
+        name: symbol,
+        winRate: Math.round((stats.wins / stats.total) * 100),
+        lossRate: Math.round((stats.losses / stats.total) * 100),
+        totalTrades: stats.total,
+      }))
+      .sort((a, b) => b.totalTrades - a.totalTrades);
+
+    // 2. By Session (London, NY, Tokyo, Sydney based on hour UTC)
+    const sessionStats: Record<string, { wins: number; losses: number; total: number }> = {
+      London: { wins: 0, losses: 0, total: 0 },
+      "New York": { wins: 0, losses: 0, total: 0 },
+      Tokyo: { wins: 0, losses: 0, total: 0 },
+      Sydney: { wins: 0, losses: 0, total: 0 },
+    };
+
+    trades.forEach((trade: any) => {
+      if (!trade.closed_at) return;
+      const date = new Date(trade.closed_at);
+      const hour = date.getHours();
+      
+      let session = "London";
+      if (hour >= 0 && hour < 8) session = "Tokyo";
+      else if (hour >= 8 && hour < 12) session = "London";
+      else if (hour >= 12 && hour < 21) session = "New York";
+      else session = "Sydney";
+
+      sessionStats[session].total++;
+      if ((trade.pnl || 0) > 0) {
+        sessionStats[session].wins++;
+      } else {
+        sessionStats[session].losses++;
+      }
+    });
+
+    const sessionData = Object.entries(sessionStats)
+      .map(([session, stats]) => ({
+        name: session,
+        winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0,
+        lossRate: stats.total > 0 ? Math.round((stats.losses / stats.total) * 100) : 0,
+        totalTrades: stats.total,
+      }))
+      .filter(s => s.totalTrades > 0);
+
+    // 3. By Day of Week (Mon-Fri)
+    const dayStats: Record<string, { wins: number; losses: number; total: number }> = {
+      Mon: { wins: 0, losses: 0, total: 0 },
+      Tue: { wins: 0, losses: 0, total: 0 },
+      Wed: { wins: 0, losses: 0, total: 0 },
+      Thu: { wins: 0, losses: 0, total: 0 },
+      Fri: { wins: 0, losses: 0, total: 0 },
+    };
+
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    trades.forEach((trade: any) => {
+      if (!trade.closed_at) return;
+      const date = new Date(trade.closed_at);
+      const dayName = dayNames[date.getDay()];
+      
+      if (dayName in dayStats) {
+        dayStats[dayName].total++;
+        if ((trade.pnl || 0) > 0) {
+          dayStats[dayName].wins++;
+        } else {
+          dayStats[dayName].losses++;
+        }
+      }
+    });
+
+    const dayData = Object.entries(dayStats)
+      .map(([day, stats]) => ({
+        name: day,
+        winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0,
+        lossRate: stats.total > 0 ? Math.round((stats.losses / stats.total) * 100) : 0,
+        totalTrades: stats.total,
+      }))
+      .filter(d => d.totalTrades > 0);
+
+    return {
+      symbol: symbolData,
+      session: sessionData,
+      day: dayData,
+      hasData: symbolData.length > 0,
+    };
+  }, [trades]);
 
   const getData = () => {
     switch (activeTab) {
       case "session":
-        return sessionData;
+        return computedData.session;
       case "day":
-        return dayData;
+        return computedData.day;
       default:
-        return symbolData;
+        return computedData.symbol;
     }
   };
+
+  if (!computedData.hasData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Target className="h-4 w-4 text-emerald-400" />
+            Win Rate Analysis
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] flex flex-col items-center justify-center text-slate-400">
+            <AlertCircle className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm">No data available yet</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -79,8 +197,8 @@ export function WinRateChart() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-4">
             <TabsTrigger value="symbol">By Symbol</TabsTrigger>
-            <TabsTrigger value="session">By Session</TabsTrigger>
-            <TabsTrigger value="day">By Day</TabsTrigger>
+            {computedData.session.length > 0 && <TabsTrigger value="session">By Session</TabsTrigger>}
+            {computedData.day.length > 0 && <TabsTrigger value="day">By Day</TabsTrigger>}
           </TabsList>
 
           <TabsContent value={activeTab}>
@@ -122,3 +240,4 @@ export function WinRateChart() {
     </Card>
   );
 }
+

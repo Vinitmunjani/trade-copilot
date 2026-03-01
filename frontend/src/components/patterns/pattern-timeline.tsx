@@ -31,80 +31,33 @@ const iconMap: Record<string, React.ElementType> = {
   size_violation: Scale,
   emotional_trading: Heart,
   chasing_losses: TrendingDown,
+  missing_sl_tp: ShieldOff,
 };
 
-// Mock pattern timeline data
-const mockPatterns: BehavioralAlert[] = [
-  {
-    id: "p1",
-    trade_id: "t2",
-    pattern_type: "fomo_entry",
-    message: "Entered GBPJPY after 40-pip move without waiting for pullback",
-    severity: "medium",
-    created_at: new Date(Date.now() - 1800000).toISOString(),
-    acknowledged: false,
-  },
-  {
-    id: "p2",
-    trade_id: null,
-    pattern_type: "overtrading",
-    message: "4th trade opened today - approaching daily limit",
-    severity: "low",
-    created_at: new Date(Date.now() - 3600000).toISOString(),
-    acknowledged: false,
-  },
-  {
-    id: "p3",
-    trade_id: "t4",
-    pattern_type: "revenge_trading",
-    message: "Quick re-entry after USDJPY loss - possible revenge trade",
-    severity: "high",
-    created_at: new Date(Date.now() - 7200000).toISOString(),
-    acknowledged: true,
-  },
-  {
-    id: "p4",
-    trade_id: "t6",
-    pattern_type: "early_exit",
-    message: "GBPUSD closed 25 pips before target - 3rd time this week",
-    severity: "low",
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    acknowledged: true,
-  },
-  {
-    id: "p5",
-    trade_id: "t8",
-    pattern_type: "session_violation",
-    message: "Trade opened during Tokyo session - outside preferred sessions",
-    severity: "medium",
-    created_at: new Date(Date.now() - 172800000).toISOString(),
-    acknowledged: true,
-  },
-  {
-    id: "p6",
-    trade_id: "t10",
-    pattern_type: "moved_stop_loss",
-    message: "Stop loss moved further from entry on XAUUSD",
-    severity: "high",
-    created_at: new Date(Date.now() - 259200000).toISOString(),
-    acknowledged: true,
-  },
-  {
-    id: "p7",
-    trade_id: "t12",
-    pattern_type: "ignored_rules",
-    message: "Checklist not completed before EURUSD entry",
-    severity: "medium",
-    created_at: new Date(Date.now() - 345600000).toISOString(),
-    acknowledged: true,
-  },
-];
 
 interface PatternTimelineProps {
   patterns?: BehavioralAlert[];
 }
 
-export function PatternTimeline({ patterns = mockPatterns }: PatternTimelineProps) {
+export function PatternTimeline({ patterns = [] }: PatternTimelineProps) {
+  if (!patterns || patterns.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-400" />
+            Pattern Timeline
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="py-12 text-center text-slate-400">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4" />
+            <p className="text-lg">No pattern alerts yet</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card>
       <CardHeader>

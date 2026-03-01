@@ -3,40 +3,27 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { AlertCircle, TrendingUp } from "lucide-react";
 import type { EquityCurvePoint } from "@/types";
-
-const mockData: EquityCurvePoint[] = [
-  { date: "Jan 01", cumulative_pnl: 0 },
-  { date: "Jan 02", cumulative_pnl: 120 },
-  { date: "Jan 03", cumulative_pnl: 85 },
-  { date: "Jan 04", cumulative_pnl: 220 },
-  { date: "Jan 05", cumulative_pnl: 180 },
-  { date: "Jan 06", cumulative_pnl: 340 },
-  { date: "Jan 07", cumulative_pnl: 290 },
-  { date: "Jan 08", cumulative_pnl: 445 },
-  { date: "Jan 09", cumulative_pnl: 520 },
-  { date: "Jan 10", cumulative_pnl: 480 },
-  { date: "Jan 11", cumulative_pnl: 610 },
-  { date: "Jan 12", cumulative_pnl: 575 },
-  { date: "Jan 13", cumulative_pnl: 720 },
-  { date: "Jan 14", cumulative_pnl: 885 },
-  { date: "Jan 15", cumulative_pnl: 849 },
-];
 
 interface EquityCurveProps {
   data?: EquityCurvePoint[];
 }
 
-export function EquityCurve({ data = mockData }: EquityCurveProps) {
-  if (data.length === 0) {
+export function EquityCurve({ data = [] }: EquityCurveProps) {
+  if (!data || data.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Equity Curve</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-emerald-400" />
+            Equity Curve
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64 flex items-center justify-center text-slate-500 text-sm">
-            No data available yet
+          <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+            <AlertCircle className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm">No data available yet</p>
           </div>
         </CardContent>
       </Card>
@@ -46,7 +33,10 @@ export function EquityCurve({ data = mockData }: EquityCurveProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Equity Curve</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-emerald-400" />
+          Equity Curve
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
@@ -92,3 +82,4 @@ export function EquityCurve({ data = mockData }: EquityCurveProps) {
     </Card>
   );
 }
+

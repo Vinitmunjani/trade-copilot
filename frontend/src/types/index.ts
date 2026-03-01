@@ -25,18 +25,30 @@ export interface Trade {
   direction: "BUY" | "SELL";
   entry_price: number;
   exit_price: number | null;
-  stop_loss: number;
-  take_profit: number;
+  sl: number | null;
+  tp: number | null;
+  stop_loss?: number;
+  take_profit?: number;
   lot_size: number;
   pnl: number | null;
   pnl_r: number | null;
-  status: "open" | "closed" | "cancelled";
+  status: "open" | "closed" | "cancelled" | "OPEN" | "CLOSED";
   opened_at: string;
   closed_at: string | null;
+  open_time?: string;
+  close_time?: string | null;
   duration_minutes: number | null;
-  session: TradingSession;
-  ai_score: TradeScore | null;
-  flags: BehavioralFlag[];
+  duration_seconds?: number | null;
+  session?: TradingSession;
+  ai_score: number | null;
+  ai_analysis: Record<string, any> | null;
+  ai_review: Record<string, any> | null;
+  behavioral_flags: Array<{flag?: string; type?: string; message: string; severity: string; [key: string]: any}> | null;
+  flags?: Array<{flag?: string; type?: string; message: string; severity: string; [key: string]: any}>;
+  external_trade_id?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface TradeScore {
@@ -146,7 +158,8 @@ export type PatternType =
   | "session_violation"
   | "size_violation"
   | "emotional_trading"
-  | "chasing_losses";
+  | "chasing_losses"
+  | "missing_sl_tp";
 
 export type TradeDirection = "BUY" | "SELL";
 export type TradeStatus = "open" | "closed" | "cancelled";
@@ -159,7 +172,9 @@ export interface WSTradeUpdate {
 export interface WSScoreUpdate {
   type: "score_update";
   trade_id: string;
-  score: TradeScore;
+  ai_score: number | null;
+  ai_analysis: Record<string, any> | null;
+  ai_review: Record<string, any> | null;
 }
 
 export interface WSAlertUpdate {

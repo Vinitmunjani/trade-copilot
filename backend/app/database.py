@@ -46,3 +46,8 @@ async def init_db() -> None:
 async def close_db() -> None:
     """Dispose of the engine connection pool."""
     await engine.dispose()
+
+
+# Import all models to register them with Base.metadata
+# This MUST happen after Base is defined but before init_db() is called
+from app.models import User, Trade, DailyStats, TradingRules, MetaAccount

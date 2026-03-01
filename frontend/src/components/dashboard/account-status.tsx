@@ -4,109 +4,129 @@ import React, { useEffect, useState } from "react";
 import { useSettingsStore } from "@/stores/settings-store";
 import { Card } from "@/components/ui/card";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+/** Map raw broker/MetaAPI status strings to human-readable copy. */
+function sanitizeMessage(msg: string | null | undefined): string | null {
+  if (!msg) return null;
+  const map: Record<string, string> = {
+    already_connected: "Session active",
+    connected: "Connected",
+    connecting: "Connecting…",
+    disconnected: "Disconnected",
+    reconnecting: "Reconnecting…",
+    synchronizing: "Synchronising…",
+  };
+  return map[msg.toLowerCase()] ?? (msg.toLowerCase() === msg ? null : msg);
+}
 
 export function AccountStatus() {
   const { tradingAccount, brokerConnected, fetchAccountInfo } = useSettingsStore();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   useEffect(() => {
-    // Always fetch from backend on mount to sync state
-    console.log("📲 AccountStatus mounted, fetching account info...");
-    setLoading(true);
-    fetchAccountInfo()
-      .then(() => {
-        console.log("✅ Account info fetched");
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("❌ Failed to fetch account info:", err);
-        setLoading(false);
-      });
-  }, [fetchAccountInfo]);
+    // Only fetch if we don't have account data yet
+    if (!hasInitialized && !tradingAccount) {
+      console.log("📲 AccountStatus: No cached account data, fetching...");
+      setLoading(true);
+      fetchAccountInfo()
+        .then(() => {
+          console.log("✅ Account info fetched");
+          setHasInitialized(true);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error("❌ Failed to fetch account info:", err);
+          setHasInitialized(true);
+          setLoading(false);
+        });
+    } else if (tradingAccount) {
+      console.log("✅ AccountStatus: Using cached account data");
+      setHasInitialized(true);
+      setLoading(false);
+    }
+  }, []);
 
   if (loading) {
     return (
-      <Card className="p-6 border-slate-800 bg-slate-900/50">
-        <div className="flex items-center gap-3">
-          <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
+      <Card className="border-white/5">
+        <div className="flex items-center gap-3 p-6">
+          <Loader2 className="h-5 w-5 animate-spin text-accent" />
+          <p className="text-sm font-medium text-foreground">Loading account...</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!tradingAccount || !tradingAccount.login) {
+    return (
+      <Card className="border-white/5">
+        <div className="flex items-center gap-3 p-6">
+          <AlertCircle className="h-5 w-5 text-amber-300" />
           <div>
-            <p className="text-sm font-medium text-slate-300">Loading account...</p>
+            <p className="text-sm font-medium text-foreground">No Account Connected</p>
+            <p className="text-xs text-muted">Go to Settings to connect a broker account</p>
           </div>
         </div>
       </Card>
     );
   }
 
-  if (!brokerConnected || !tradingAccount || !tradingAccount.login) {
-    return (
-      <Card className="p-6 border-slate-800 bg-slate-900/50">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-500" />
-          <div>
-            <p className="text-sm font-medium text-slate-300">No Account Connected</p>
-            <p className="text-xs text-slate-500">Go to Settings to connect a broker account</p>
-          </div>
-        </div>
-      </Card>
-    );
-  }
+  const humanMessage = sanitizeMessage(tradingAccount.message);
 
   return (
-    <Card className="p-6 border-slate-800 bg-slate-900/50">
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-            <h3 className="text-sm font-semibold text-slate-100">Trading Account</h3>
-          </div>
-          <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            {tradingAccount.connection_status === "connected" ? "Connected" : "Disconnected"}
-          </span>
-        </div>
-
-        {/* Account Details */}
-        <div className="grid grid-cols-2 gap-4">
-          {/* Broker */}
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Broker</p>
-            <p className="text-sm font-medium text-slate-100 mt-1">
-              {tradingAccount.platform || "Unknown"}
-            </p>
-          </div>
-
-          {/* Login */}
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Account Login</p>
-            <p className="text-sm font-medium text-slate-100 mt-1 font-mono">
-              {tradingAccount.login || "N/A"}
-            </p>
-          </div>
-
-          {/* Server */}
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Server</p>
-            <p className="text-sm font-medium text-slate-100 mt-1">
-              {tradingAccount.server || "N/A"}
-            </p>
-          </div>
-
-          {/* Status */}
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Status</p>
-            <p className="text-sm font-medium text-emerald-400 mt-1">
-              {tradingAccount.connection_status === "connected" ? "✓ Connected" : "Disconnected"}
-            </p>
-          </div>
-        </div>
-
-        {/* Message */}
-        {tradingAccount.message && tradingAccount.message !== "Connected" && (
-          <div className="pt-2 border-t border-slate-800">
-            <p className="text-xs text-slate-400">{tradingAccount.message}</p>
-          </div>
-        )}
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-white/5 bg-white/[0.03] px-5 py-3">
+      {/* Label */}
+      <div className="flex items-center gap-2 shrink-0">
+        <CheckCircle2 className="h-4 w-4 text-accent" />
+        <span className="text-xs font-semibold uppercase tracking-[0.25em] text-foreground/90">Trading Account</span>
       </div>
-    </Card>
+
+      <div className="h-4 w-px bg-white/10 shrink-0 hidden sm:block" />
+
+      {/* Broker */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-[0.3em] text-muted">Broker</span>
+        <span className="text-xs font-medium text-foreground">{tradingAccount.platform || "—"}</span>
+      </div>
+
+      {/* Server */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-[0.3em] text-muted">Server</span>
+        <span className="text-xs font-medium text-foreground">{tradingAccount.server || "—"}</span>
+      </div>
+
+      {/* Login */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-[0.3em] text-muted">Login</span>
+        <span className="font-mono text-xs font-medium text-foreground">{tradingAccount.login || "—"}</span>
+      </div>
+
+      {/* Optional sanitized message */}
+      {humanMessage && (
+        <span className="text-[11px] text-muted hidden md:inline">{humanMessage}</span>
+      )}
+
+      {/* Status badge — pushed to the right */}
+      <div className="ml-auto shrink-0">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium",
+            tradingAccount.connected
+              ? "border-accent/30 bg-accent/10 text-accent"
+              : "border-amber-400/30 bg-amber-500/10 text-amber-300"
+          )}
+        >
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              tradingAccount.connected ? "bg-accent" : "bg-amber-400"
+            )}
+          />
+          {tradingAccount.connected ? "Connected" : "Linked"}
+        </span>
+      </div>
+    </div>
   );
 }

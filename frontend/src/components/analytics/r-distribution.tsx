@@ -3,27 +3,40 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { AlertCircle, Zap } from "lucide-react";
 import type { RDistributionBucket } from "@/types";
-
-const mockData: RDistributionBucket[] = [
-  { range: "<-2R", count: 3, min_r: -5, max_r: -2 },
-  { range: "-2 to -1R", count: 8, min_r: -2, max_r: -1 },
-  { range: "-1 to 0R", count: 12, min_r: -1, max_r: 0 },
-  { range: "0 to 1R", count: 15, min_r: 0, max_r: 1 },
-  { range: "1 to 2R", count: 20, min_r: 1, max_r: 2 },
-  { range: "2 to 3R", count: 10, min_r: 2, max_r: 3 },
-  { range: ">3R", count: 5, min_r: 3, max_r: 5 },
-];
 
 interface RDistributionProps {
   data?: RDistributionBucket[];
 }
 
-export function RDistribution({ data = mockData }: RDistributionProps) {
+export function RDistribution({ data = [] }: RDistributionProps) {
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Zap className="h-4 w-4 text-emerald-400" />
+            R Distribution
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[250px] flex flex-col items-center justify-center text-slate-400">
+            <AlertCircle className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm">No data available yet</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">R Distribution</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Zap className="h-4 w-4 text-emerald-400" />
+          R Distribution
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={250}>
@@ -56,3 +69,4 @@ export function RDistribution({ data = mockData }: RDistributionProps) {
     </Card>
   );
 }
+

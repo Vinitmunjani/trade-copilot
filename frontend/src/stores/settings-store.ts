@@ -8,6 +8,7 @@ interface ConnectBrokerParams {
   password: string;
   server: string;
   platform: string;
+  broker: string;
 }
 
 interface SettingsState {
@@ -16,12 +17,18 @@ interface SettingsState {
   tradingAccount: TradingAccount | null;
   isConnecting: boolean;
   isSaving: boolean;
+  // debug information only used in development
+  streamingLogs: Record<string, string[]>;
 
   fetchRules: () => Promise<void>;
   updateRules: (rules: Partial<TradingRules>) => Promise<void>;
   connectBroker: (params: ConnectBrokerParams) => Promise<void>;
   disconnectBroker: () => Promise<void>;
   fetchAccountInfo: () => Promise<void>;
+  fetchAccounts?: () => Promise<any[]>;
+  selectAccount?: (accountId: string) => Promise<any>;
+  removeAccount?: (accountId: string) => Promise<void>;
+  fetchStreamingLogs?: (userId: string) => Promise<void>;
   addChecklistItem: (label: string) => void;
   removeChecklistItem: (id: string) => void;
   reorderChecklist: (items: ChecklistItem[]) => void;
@@ -62,14 +69,28 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
 
-      updateRules: async (updates: Partial<TradingRules>) => {
+      updateRules: async (rules: Partial<TradingRules>) => {
         set({ isSaving: true });
-        const newRules = { ...get().rules, ...updates };
         try {
-          await api.put("/settings/rules", newRules);
+          const { data: newRules } = await api.post("/settings/rules", rules);
           set({ rules: newRules, isSaving: false });
-        } catch {
-          set({ rules: newRules, isSaving: false });
+        } catch (err) {
+          console.error("Failed to save rules", err);
+          set({ isSaving: false });
+          throw err;
+        }
+      },
+
+      streamingLogs: {},
+      fetchStreamingLogs: async (userId: string) => {
+        try {
+          const { data } = await api.get("/dev/trader-data", {
+            params: { user_id: userId },
+          });
+          set({ streamingLogs: data.streaming_logs || {} });
+        } catch (err) {
+          console.error("Failed to fetch streaming logs", err);
+          set({ streamingLogs: {} });
         }
       },
 
@@ -77,37 +98,36 @@ export const useSettingsStore = create<SettingsState>()(
         set({ isConnecting: true });
         try {
           console.log("🔌 Connecting to broker:", params.platform);
-          
-          const { data } = await api.post("/account/connect", null, {
-            params: {
-              broker: params.platform,
-              login: params.login,
-              password: params.password,
-              server: params.server,
-            },
+
+          const { data } = await api.post("/account/connect", {
+            login: params.login,
+            password: params.password,
+            server: params.server,
+            platform: params.platform.toLowerCase().includes("mt4") ? "mt4" : "mt5",
+            broker: params.broker || params.platform,
           });
-          
+
           console.log("📡 Backend response:", data);
-          
-          // Map broker field correctly - use data.broker (the original broker name from backend)
+
+          // Map backend TradingAccountResponse correctly
           const account: TradingAccount = {
-            connected: data.status === "connected",
+            connected: data.connection_status === "connected" || data.status === "connected",
             account_id: data.id || null,
             login: data.login || params.login,
             server: data.server || params.server,
-            platform: data.broker || params.platform,  // Use broker field from response
-            connection_status: data.status || "disconnected",
-            message: data.status === "connected" ? "Connected" : data.error || "Connection failed",
+            platform: data.platform || params.platform,
+            connection_status: data.connection_status || data.status || "disconnected",
+            message: data.message || (data.connection_status === "connected" ? "Connected" : "Connection failed"),
           };
-          
+
           console.log("💾 Saving account:", account);
-          
+
           set({
             brokerConnected: account.connected,
             tradingAccount: account,
             isConnecting: false,
           });
-          
+
           if (!account.connected) {
             throw new Error(account.message || "Connection failed");
           }
@@ -128,6 +148,7 @@ export const useSettingsStore = create<SettingsState>()(
           set({
             brokerConnected: false,
             tradingAccount: null,
+            streamingLogs: {},
           });
           // Clear persisted state on disconnect
           localStorage.removeItem("settings-store");
@@ -135,37 +156,50 @@ export const useSettingsStore = create<SettingsState>()(
           set({
             brokerConnected: false,
             tradingAccount: null,
+            streamingLogs: {},
           });
           localStorage.removeItem("settings-store");
+        }
+      },
+
+      removeAccount: async (accountId: string) => {
+        try {
+          await api.delete(`/account/disconnect?account_id=${encodeURIComponent(accountId)}`);
+          // Refresh persisted state
+          localStorage.removeItem("settings-store");
+        } catch (err) {
+          console.error('Failed to remove account', err);
+          throw err;
         }
       },
 
       fetchAccountInfo: async () => {
         try {
           console.log("📥 Fetching account info from backend...");
-          const { data } = await api.get("/account/list");
-          console.log("📦 Account list response:", data);
-          
-          if (data && data.length > 0) {
-            const account = data[0];
+          const { data } = await api.get("/account/info");
+          console.log("📦 Account info response:", data);
+
+          if (data && data.login) {
+            // Account exists (either connected or just linked)
             const tradingAccount: TradingAccount = {
-              connected: account.status === "connected",
-              account_id: account.id || null,
-              login: account.login || null,
-              server: account.server || null,
-              platform: account.broker || null,  // Use broker field from backend
-              connection_status: account.status || "disconnected",
-              message: "Connected",
+              connected: data.connected || data.connection_status === "connected",
+              account_id: data.account_id || data.id || null,
+              login: data.login,
+              server: data.server || null,
+              platform: data.platform || data.broker || null,
+              connection_status: data.connection_status || "disconnected",
+              message: data.message || (data.connected ? "Connected" : "Linked but not active"),
             };
-            
+
             console.log("✅ Loaded account:", tradingAccount);
-            
+
+            // Show account if either connected OR linked
             set({
-              brokerConnected: true,
+              brokerConnected: tradingAccount.connected,
               tradingAccount,
             });
           } else {
-            console.log("⚠️ No accounts found in backend");
+            console.log("⚠️ No account info found");
             set({
               brokerConnected: false,
               tradingAccount: null,
@@ -179,6 +213,38 @@ export const useSettingsStore = create<SettingsState>()(
           });
         }
       },
+
+        fetchAccounts: async () => {
+          try {
+            const { data } = await api.get('/accounts');
+            // data is array of MetaAccountResponse
+            set({ isSaving: false });
+            return data;
+          } catch (err) {
+            console.error('Failed to fetch accounts', err);
+            return [];
+          }
+        },
+
+        selectAccount: async (accountId: string) => {
+          try {
+            const { data } = await api.post('/account/select', { account_id: accountId });
+            const account = {
+              connected: data.connected,
+              account_id: data.account_id,
+              login: data.login,
+              server: data.server,
+              platform: data.platform,
+              connection_status: data.connection_status,
+              message: data.message,
+            } as any;
+            set({ tradingAccount: account, brokerConnected: account.connected });
+            return account;
+          } catch (err) {
+            console.error('Failed to select/connect account', err);
+            throw err;
+          }
+        },
 
       setTradingAccount: (account: TradingAccount | null) => {
         set({
@@ -222,6 +288,14 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "settings-store",
+      // persist only the basic user settings; logs are ephemeral
+      partialize: (state) => ({
+        rules: state.rules,
+        brokerConnected: state.brokerConnected,
+        tradingAccount: state.tradingAccount,
+        isConnecting: state.isConnecting,
+        isSaving: state.isSaving,
+      }),
     }
   )
 );

@@ -43,22 +43,22 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Activity className="h-8 w-8 text-emerald-500" />
-            <span className="text-2xl font-bold text-slate-100">Trade Co-Pilot</span>
+            <Activity className="h-8 w-8 text-accent" />
+            <span className="text-2xl font-bold text-foreground">ampere.capital</span>
           </div>
-          <p className="text-slate-400 text-sm">AI-powered trading psychology</p>
+          <p className="text-muted text-sm">AI-powered trading psychology</p>
         </div>
 
         {/* Register Form */}
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Create Account</CardTitle>
-            <p className="text-slate-400 text-center text-sm">
+            <p className="text-muted text-center text-sm">
               Start your journey to better trading psychology
             </p>
           </CardHeader>
@@ -142,10 +142,10 @@ export default function RegisterPage() {
               </Button>
 
               <div className="text-center text-sm">
-                <span className="text-slate-400">Already have an account? </span>
+                <span className="text-muted">Already have an account? </span>
                 <Link
                   href="/login"
-                  className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                  className="text-accent hover:text-accent-glow transition-colors"
                 >
                   Sign in
                 </Link>
@@ -155,7 +155,7 @@ export default function RegisterPage() {
         </Card>
 
         {/* Footer */}
-        <p className="text-center text-xs text-slate-500 mt-8">
+        <p className="text-center text-xs text-muted mt-8">
           By creating an account, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>

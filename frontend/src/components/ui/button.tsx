@@ -4,22 +4,24 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-600 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm",
-        destructive: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
-        outline: "border border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-slate-100",
-        secondary: "bg-slate-800 text-slate-200 hover:bg-slate-700",
-        ghost: "text-slate-300 hover:bg-slate-800 hover:text-slate-100",
-        link: "text-emerald-400 underline-offset-4 hover:underline",
+        default:
+          "bg-accent text-black shadow-[0_15px_45px_rgba(16,185,129,0.35)] hover:shadow-[0_20px_55px_rgba(16,185,129,0.45)]",
+        destructive: "bg-danger text-white hover:bg-danger/90",
+        outline:
+          "border border-white/20 bg-transparent text-foreground/80 hover:border-white/40",
+        secondary: "bg-surface-contrast text-foreground border border-white/10 hover:border-white/30",
+        ghost: "text-foreground/70 hover:text-foreground hover:bg-white/5",
+        link: "text-accent underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
-        icon: "h-9 w-9",
+        default: "h-11 px-6",
+        sm: "h-9 px-4 text-xs",
+        lg: "h-12 px-8 text-base",
+        icon: "h-10 w-10",
       },
     },
     defaultVariants: {
