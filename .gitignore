@@ -45,3 +45,6 @@ Dockerfile
 # Local development
 docker-compose.yml
 start.sh
+
+# MetaAPI local runtime cache
+backend/.metaapi/
