@@ -53,10 +53,6 @@ export function Topbar({ isConnected }: TopbarProps) {
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 lg:px-8">
         <div className="flex items-center gap-3">
           <MobileNav />
-          <div className="hidden flex-col md:flex">
-            <span className="text-xs uppercase tracking-[0.4em] text-foreground/50">Live environment</span>
-            <span className="text-sm text-foreground/80">Alpha board — {isConnected ? "synced" : "syncing"}</span>
-          </div>
         </div>
 
         <div className="flex items-center gap-3">
