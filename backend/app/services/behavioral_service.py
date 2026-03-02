@@ -40,6 +40,24 @@ SESSIONS = {
 }
 
 
+def _extract_close_reason(notes: Optional[str]) -> Optional[str]:
+    if not notes:
+        return None
+    marker = "[close_reason:"
+    start = notes.find(marker)
+    if start == -1:
+        return None
+    start += len(marker)
+    end = notes.find("]", start)
+    if end == -1:
+        return None
+    return notes[start:end].strip().lower() or None
+
+
+def _is_ai_direction_conflict_close(trade: Trade) -> bool:
+    return _extract_close_reason(getattr(trade, "notes", None)) == "ai_direction_conflict"
+
+
 def get_current_session(dt: Optional[datetime] = None) -> str:
     """Determine the current trading session based on UTC hour.
 
@@ -112,9 +130,10 @@ async def detect_revenge_trading(
             )
         )
         .order_by(Trade.close_time.desc())
-        .limit(1)
+        .limit(20)
     )
-    recent_loss = result.scalar_one_or_none()
+    candidates = result.scalars().all()
+    recent_loss = next((t for t in candidates if not _is_ai_direction_conflict_close(t)), None)
 
     if recent_loss:
         minutes_ago = (datetime.now(timezone.utc) - recent_loss.close_time.replace(tzinfo=timezone.utc)).total_seconds() / 60
@@ -253,6 +272,7 @@ async def detect_weak_session(
     session_trades = [
         t for t in trades
         if session_start_hour <= t.open_time.hour < session_end_hour
+        and not _is_ai_direction_conflict_close(t)
     ]
 
     if len(session_trades) >= 10:  # Need enough data
@@ -539,8 +559,14 @@ async def detect_winner_cutting(
     )
     trades = result.scalars().all()
 
-    winners = [t for t in trades if t.pnl and t.pnl > 0 and t.duration_seconds]
-    losers = [t for t in trades if t.pnl and t.pnl < 0 and t.duration_seconds]
+    winners = [
+        t for t in trades
+        if t.pnl and t.pnl > 0 and t.duration_seconds and not _is_ai_direction_conflict_close(t)
+    ]
+    losers = [
+        t for t in trades
+        if t.pnl and t.pnl < 0 and t.duration_seconds and not _is_ai_direction_conflict_close(t)
+    ]
 
     if len(winners) < 5 or len(losers) < 5:
         return None

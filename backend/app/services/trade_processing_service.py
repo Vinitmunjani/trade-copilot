@@ -77,6 +77,66 @@ def _build_trade_payload(trade: Trade) -> dict:
 
 logger = logging.getLogger(__name__)
 
+AI_DIRECTION_CONFLICT_CLOSE_REASON = "ai_direction_conflict"
+
+
+def _upsert_close_reason_note(notes: Optional[str], close_reason: Optional[str]) -> Optional[str]:
+    """Persist close reason as a lightweight note marker without DB migration.
+
+    Marker format: [close_reason:<value>]
+    """
+    if not close_reason:
+        return notes
+    marker = f"[close_reason:{close_reason}]"
+    existing = (notes or "").strip()
+    if "[close_reason:" in existing:
+        import re
+        existing = re.sub(r"\[close_reason:[^\]]+\]", marker, existing)
+        return existing
+    if not existing:
+        return marker
+    return f"{existing} {marker}"
+
+
+def _infer_close_reason(row: Trade, explicit_reason: Optional[str]) -> Optional[str]:
+    """Infer close reason for immediate exits driven by low-quality AI thesis.
+
+    If trade is closed very quickly and AI score/thesis suggests opposite or poor setup,
+    classify as ai_direction_conflict so behavioral pattern detectors can exclude it.
+    """
+    if explicit_reason:
+        return explicit_reason
+
+    if row.duration_seconds is None or row.duration_seconds > 180:
+        return None
+
+    ai_score = row.ai_score
+    if ai_score is None and isinstance(row.ai_analysis, dict):
+        try:
+            ai_score = int(row.ai_analysis.get("score")) if row.ai_analysis.get("score") is not None else None
+        except Exception:
+            ai_score = None
+
+    if ai_score is not None and ai_score <= 4:
+        return AI_DIRECTION_CONFLICT_CLOSE_REASON
+
+    summary = ""
+    if isinstance(row.ai_analysis, dict):
+        summary = str(row.ai_analysis.get("summary") or "").lower()
+
+    bearish_cues = (
+        "against trend",
+        "poor setup",
+        "avoid",
+        "not recommended",
+        "high risk",
+        "low quality",
+    )
+    if summary and any(cue in summary for cue in bearish_cues):
+        return AI_DIRECTION_CONFLICT_CLOSE_REASON
+
+    return None
+
 class TradeProcessingService:
     def __init__(self):
         self._ws_manager = None
@@ -481,6 +541,7 @@ class TradeProcessingService:
                 trade = open_trades[0]
 
                 now = datetime.now(timezone.utc)
+                explicit_close_reason = trade_data.get("close_reason")
 
                 # Close all matching open rows so duplicates don't remain open
                 broker_pnl = trade_data.get("pnl")  # Broker-provided profit in account currency
@@ -542,6 +603,9 @@ class TradeProcessingService:
                                 risk_in_money = (risk / 0.0001) * 10.0 * row.lot_size
                             row.pnl_r = round(row.pnl / risk_in_money, 3) if risk_in_money != 0 else 0
 
+                            close_reason = _infer_close_reason(row, explicit_close_reason)
+                            row.notes = _upsert_close_reason_note(row.notes, close_reason)
+
                 # keep reference to newest row for notification/broadcast payload
                 trade = open_trades[0]
 
@@ -554,6 +618,7 @@ class TradeProcessingService:
                         "exit_price": trade.exit_price,
                         "pnl": round(trade.pnl, 2) if trade.pnl is not None else None,
                         "pnl_r": trade.pnl_r,
+                        "close_reason": _infer_close_reason(trade, explicit_close_reason),
                         "close_time": now.isoformat(),
                     },
                 ))
