@@ -1,6 +1,7 @@
-from typing import Optional, Union
+from typing import Optional, Union, Literal
 """Statistics routes — overview, daily, weekly, symbol, and session performance."""
 
+import json
 import logging
 from datetime import date, datetime, timedelta, timezone
 
@@ -8,7 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, get_redis
 from app.models.daily_stats import DailyStats
 from app.models.trade import Trade, TradeStatus
 from app.models.user import User
@@ -21,6 +22,273 @@ from app.services.stats_service import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stats", tags=["Statistics"])
+CACHE_TTL_SECONDS = 60
+
+
+async def _read_cache(cache_client, key: str):
+    """Best-effort cache read helper (returns None on miss/error)."""
+    if not cache_client:
+        return None
+    try:
+        cached = await cache_client.get(key)
+        if cached:
+            return json.loads(cached)
+    except Exception as e:
+        logger.debug(f"Stats cache read failed for {key}: {e}")
+    return None
+
+
+async def _write_cache(cache_client, key: str, payload: dict):
+    """Best-effort cache write helper (silently ignores failures)."""
+    if not cache_client:
+        return
+    try:
+        await cache_client.set(key, json.dumps(payload), ex=CACHE_TTL_SECONDS)
+    except Exception as e:
+        logger.debug(f"Stats cache write failed for {key}: {e}")
+
+
+def _derive_session_from_open_time(open_time: Optional[datetime]) -> str:
+    """Map a trade open time to session buckets used by frontend dashboard."""
+    if not open_time:
+        return "unknown"
+
+    if open_time.tzinfo is None:
+        hour = open_time.hour
+    else:
+        hour = open_time.astimezone(timezone.utc).hour
+
+    if 0 <= hour < 8:
+        return "tokyo"
+    if 8 <= hour < 13:
+        return "london"
+    if 13 <= hour < 22:
+        return "new_york"
+    return "sydney"
+
+
+@router.get("/edge")
+async def get_edge_stats(
+    group_by: Literal["symbol", "session"] = Query("symbol", description="Group stats by symbol or session"),
+    days: int = Query(90, ge=1, le=365, description="Lookback period in days"),
+    min_trades: int = Query(2, ge=1, le=50, description="Minimum trades per group"),
+    limit: int = Query(6, ge=1, le=30, description="Maximum rows to return"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis_client=Depends(get_redis),
+):
+    """Get edge breakdown from real closed trades for dashboard Edge Finder."""
+    cache_key = f"stats:edge:{current_user.id}:{group_by}:{days}:{min_trades}:{limit}"
+    cached_payload = await _read_cache(redis_client, cache_key)
+    if cached_payload is not None:
+        return cached_payload
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    result = await db.execute(
+        select(Trade).where(
+            and_(
+                Trade.user_id == current_user.id,
+                Trade.status == TradeStatus.CLOSED,
+                Trade.close_time >= since,
+            )
+        )
+    )
+    trades = result.scalars().all()
+
+    bucket_map: dict[str, dict[str, float]] = {}
+
+    for t in trades:
+        pnl = t.pnl
+        if pnl is None:
+            continue
+
+        if group_by == "symbol":
+            key = (t.symbol or "unknown").upper()
+        else:
+            key = _derive_session_from_open_time(t.open_time).replace("_", " ")
+
+        if key not in bucket_map:
+            bucket_map[key] = {"wins": 0.0, "total": 0.0, "pnl": 0.0}
+
+        bucket_map[key]["total"] += 1.0
+        bucket_map[key]["pnl"] += float(pnl)
+        if pnl > 0:
+            bucket_map[key]["wins"] += 1.0
+
+    rows = []
+    for key, vals in bucket_map.items():
+        total = int(vals["total"])
+        if total < min_trades:
+            continue
+        wins = int(vals["wins"])
+        total_pnl = float(vals["pnl"])
+        win_rate = (wins / total) * 100 if total else 0.0
+        avg_pnl = total_pnl / total if total else 0.0
+        rows.append({
+            "key": key,
+            "trades": total,
+            "wins": wins,
+            "winRate": round(win_rate, 2),
+            "avgPnl": round(avg_pnl, 2),
+            "totalPnl": round(total_pnl, 2),
+        })
+
+    rows.sort(key=lambda r: (-r["winRate"], -r["totalPnl"]))
+    rows = rows[:limit]
+
+    payload = {
+        "group_by": group_by,
+        "days": days,
+        "min_trades": min_trades,
+        "rows": rows,
+    }
+    await _write_cache(redis_client, cache_key, payload)
+    return payload
+
+
+@router.get("/loss-protection")
+async def get_loss_protection(
+    recent_limit: int = Query(10, ge=3, le=30, description="Number of recent closed trades to return"),
+    lookback_days: int = Query(90, ge=1, le=365, description="Lookback period for closed trades"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis_client=Depends(get_redis),
+):
+    """Get loss-streak protection metrics from real closed trade history."""
+    cache_key = f"stats:loss-protection:{current_user.id}:{recent_limit}:{lookback_days}"
+    cached_payload = await _read_cache(redis_client, cache_key)
+    if cached_payload is not None:
+        return cached_payload
+
+    since = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+
+    result = await db.execute(
+        select(Trade)
+        .where(
+            and_(
+                Trade.user_id == current_user.id,
+                Trade.status == TradeStatus.CLOSED,
+                Trade.close_time >= since,
+            )
+        )
+        .order_by(Trade.close_time.desc())
+        .limit(100)
+    )
+    trades = [t for t in result.scalars().all() if t.pnl is not None]
+
+    consecutive_losses = 0
+    dollar_lost = 0.0
+    for t in trades:
+        pnl = float(t.pnl or 0)
+        if pnl < 0:
+            consecutive_losses += 1
+            dollar_lost += abs(pnl)
+        else:
+            break
+
+    if consecutive_losses >= 3:
+        level = "lockout"
+    elif consecutive_losses >= 2:
+        level = "warn"
+    else:
+        level = "clear"
+
+    if consecutive_losses >= 3:
+        suggested_modifier = 0.25
+    elif consecutive_losses == 2:
+        suggested_modifier = 0.5
+    elif consecutive_losses == 1:
+        suggested_modifier = 0.75
+    else:
+        suggested_modifier = 1.0
+
+    last_results = [
+        {
+            "symbol": t.symbol,
+            "pnl": round(float(t.pnl or 0), 2),
+            "closed_at": t.close_time.isoformat() if t.close_time else None,
+        }
+        for t in trades[:recent_limit]
+    ]
+
+    payload = {
+        "consecutive_losses": consecutive_losses,
+        "dollar_lost": round(dollar_lost, 2),
+        "level": level,
+        "suggested_modifier": suggested_modifier,
+        "last_results": last_results,
+    }
+    await _write_cache(redis_client, cache_key, payload)
+    return payload
+
+
+@router.get("/pattern-cost")
+async def get_pattern_cost(
+    days: int = Query(90, ge=1, le=365, description="Lookback period in days"),
+    limit: int = Query(6, ge=1, le=20, description="Maximum number of patterns to return"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get real behavioural pattern cost breakdown from closed trades.
+
+    Cost is computed as the absolute loss on losing trades where a given
+    behavioural flag was detected.
+    """
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    result = await db.execute(
+        select(Trade).where(
+            and_(
+                Trade.user_id == current_user.id,
+                Trade.status == TradeStatus.CLOSED,
+                Trade.close_time >= since,
+            )
+        )
+    )
+    trades = result.scalars().all()
+
+    pattern_map: dict[str, dict[str, float]] = {}
+
+    for trade in trades:
+        flags = trade.behavioral_flags or []
+        if not flags:
+            continue
+
+        pnl = trade.pnl or 0
+        is_loss = pnl < 0
+
+        for flag in flags:
+            if isinstance(flag, dict):
+                key = (flag.get("flag") or flag.get("type") or "unknown")
+            else:
+                key = str(flag)
+            key = key.lower().strip() or "unknown"
+
+            if key not in pattern_map:
+                pattern_map[key] = {"cost": 0.0, "count": 0.0}
+
+            if is_loss:
+                pattern_map[key]["cost"] += abs(float(pnl))
+            pattern_map[key]["count"] += 1.0
+
+    rows = [
+        {
+            "key": key,
+            "cost": round(vals["cost"], 2),
+            "count": int(vals["count"]),
+        }
+        for key, vals in pattern_map.items()
+    ]
+    rows.sort(key=lambda r: r["cost"], reverse=True)
+    rows = rows[:limit]
+
+    return {
+        "days": days,
+        "total_patterns": len(pattern_map),
+        "total_cost": round(sum(r["cost"] for r in rows), 2),
+        "rows": rows,
+    }
 
 
 @router.get("/overview")

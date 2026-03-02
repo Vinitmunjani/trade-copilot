@@ -5,6 +5,7 @@ Configures the app with lifespan events, CORS, and all routers.
 """
 
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -16,6 +17,7 @@ from app.core.dependencies import init_redis, close_redis
 from app.api.router import api_router
 from app.api.ws import ws_manager
 from app.services.metaapi_service import metaapi_service
+from app.services.trial_enforcement_service import run_trial_enforcement_loop
 
 settings = get_settings()
 
@@ -65,12 +67,30 @@ async def lifespan(app: FastAPI):
     await metaapi_service.lifespan()
     logger.info("✅ WebSocket manager connected to MetaAPI service")
 
+    # Start trial expiry enforcement loop (disconnect + undeploy expired trials)
+    trial_stop_event = asyncio.Event()
+    trial_task = asyncio.create_task(run_trial_enforcement_loop(trial_stop_event))
+    app.state.trial_enforcement_stop_event = trial_stop_event
+    app.state.trial_enforcement_task = trial_task
+    logger.info("✅ Trial expiry enforcement started")
+
     logger.info("🟢 AI Trade Co-Pilot Backend ready!")
 
     yield
 
     # Shutdown
     logger.info("🔴 Shutting down AI Trade Co-Pilot Backend...")
+
+    trial_stop_event = getattr(app.state, "trial_enforcement_stop_event", None)
+    trial_task = getattr(app.state, "trial_enforcement_task", None)
+    if trial_stop_event is not None:
+        trial_stop_event.set()
+    if trial_task is not None:
+        try:
+            await trial_task
+        except Exception:
+            pass
+
     await metaapi_service.shutdown()
     await close_redis()
     await close_db()

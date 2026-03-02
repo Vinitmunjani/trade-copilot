@@ -14,6 +14,7 @@ import {
   FileText,
   Settings,
   Activity,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/patterns", label: "Patterns", icon: Brain },
   { href: "/rules", label: "Rules", icon: Shield },
   { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

@@ -2,7 +2,7 @@
 from typing import List, Dict,  Optional, Union
 
 Provides pre-trade scoring, post-trade review, and weekly report generation
-using GPT-4o-mini for all analyses.
+using the configured OpenAI model for all analyses.
 """
 
 import json
@@ -16,6 +16,7 @@ from app.schemas.analysis import TradeScore, TradeReview, WeeklyReport
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+AI_MODEL = settings.OPENAI_MODEL or "gpt-5.2"
 
 
 def _build_pre_trade_prompt(
@@ -48,16 +49,53 @@ def _build_pre_trade_prompt(
 
     market_text = ""
     if market_context:
+        fib = market_context.get('fibonacci_pivots')
+        if fib:
+            fib_text = (
+                f"Pivot: {fib.get('pivot', 'N/A')} | "
+                f"R1: {fib.get('r1', 'N/A')} R2: {fib.get('r2', 'N/A')} R3: {fib.get('r3', 'N/A')} | "
+                f"S1: {fib.get('s1', 'N/A')} S2: {fib.get('s2', 'N/A')} S3: {fib.get('s3', 'N/A')}"
+            )
+        else:
+            fib_text = "N/A"
+
+        bb_pct = market_context.get('bb_percent_b')
+        bb_pct_str = f"{bb_pct:.2f}" if bb_pct is not None else "N/A"
+        bb_squeeze = market_context.get('bb_squeeze')
+        bb_squeeze_str = "YES (tight consolidation)" if bb_squeeze else ("no" if bb_squeeze is not None else "N/A")
+
+        news_event = market_context.get('nearest_news_event') or "None"
+
         market_text = f"""
 Current Price: {market_context.get('current_price', 'N/A')}
-Trend (EMA20): {market_context.get('ema20_trend', 'N/A')}
-Trend (EMA50): {market_context.get('ema50_trend', 'N/A')}
-Trend (EMA200): {market_context.get('ema200_trend', 'N/A')}
+
+[TREND]
+H1 Trend: {market_context.get('overall_trend', 'N/A')} (EMA20: {market_context.get('ema20_trend', 'N/A')}, EMA50: {market_context.get('ema50_trend', 'N/A')}, EMA200: {market_context.get('ema200_trend', 'N/A')})
+HTF Daily Trend: {market_context.get('htf_trend', 'N/A')}
+
+[MOMENTUM]
+RSI(14): {market_context.get('rsi', 'N/A')} — {market_context.get('rsi_state', 'N/A')}
+MACD: line={market_context.get('macd_line', 'N/A')}  signal={market_context.get('signal_line', 'N/A')}  hist={market_context.get('histogram', 'N/A')}  cross={market_context.get('macd_cross', 'N/A')}
+Bollinger Bands: upper={market_context.get('bb_upper', 'N/A')}  lower={market_context.get('bb_lower', 'N/A')}  %B={bb_pct_str}  squeeze={bb_squeeze_str}
+
+[VOLATILITY]
 ATR(14): {market_context.get('atr', 'N/A')}
-Key Support: {market_context.get('support_levels', 'N/A')}
-Key Resistance: {market_context.get('resistance_levels', 'N/A')}
+ATR Percentile: {market_context.get('atr_percentile', 'N/A')}  Regime: {market_context.get('volatility_regime', 'N/A')}
+Daily Range Used: {market_context.get('daily_range_percent', 'N/A')}%
+
+[KEY LEVELS]
+Prev Day High: {market_context.get('prev_day_high', 'N/A')}  Low: {market_context.get('prev_day_low', 'N/A')}  Close: {market_context.get('prev_day_close', 'N/A')}
+Key Support: {market_context.get('support_levels', 'N/A')}  (distance: {market_context.get('distance_to_support_atr', 'N/A')} ATR)
+Key Resistance: {market_context.get('resistance_levels', 'N/A')}  (distance: {market_context.get('distance_to_resistance_atr', 'N/A')} ATR)
+Fibonacci Pivots: {fib_text}
+
+[CANDLE & SESSION]
+Last Candle Pattern: {market_context.get('candle_pattern', 'N/A')}
 Session: {market_context.get('session', 'N/A')}
-Daily Range Used: {market_context.get('daily_range_percent', 'N/A')}%"""
+
+[NEWS RISK]
+Risk Level: {market_context.get('news_risk_level', 'N/A')}  High-impact events in 1h: {market_context.get('news_events_1h', 0)}
+Nearest Event: {news_event}"""
     else:
         market_text = "  Market context unavailable"
 
@@ -83,7 +121,7 @@ Winning Streak: {user_history.get('streak', 'N/A')}"""
     else:
         positions_text = "  None"
 
-    return f"""You are an expert trading analyst AI co-pilot. Analyze this trade setup and provide a quality score from 1-10.
+    return f"""You are an expert trading analyst AI co-pilot trade setup and provide a quality suggestion and trade quality score from 1-10.
 
 ## TRADE SETUP
 Symbol: {trade.get('symbol', 'N/A')}
@@ -275,7 +313,7 @@ async def analyze_pre_trade(
 ) -> TradeScore:
     """Run pre-trade AI analysis and return a quality score.
 
-    Uses GPT-4o-mini for quick scoring to minimize latency on trade open.
+    Uses the configured OpenAI model for quick scoring on trade open.
 
     Args:
         trade: Normalized trade data dict.
@@ -308,13 +346,13 @@ async def analyze_pre_trade(
     try:
         client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=AI_MODEL,
             messages=[
                 {"role": "system", "content": "You are a professional trading analyst. Respond only with valid JSON."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=1000,
+            max_completion_tokens=1000,
         )
         result = _parse_json_response(response.choices[0].message.content or "{}")
     except Exception as e:
@@ -375,16 +413,33 @@ Risk Assessment at Entry: {thesis.get('risk_assessment', 'N/A')}"""
 
     market_text = ""
     if market_context and market_context.get("current_price"):
+        fib = market_context.get('fibonacci_pivots')
+        fib_text = (
+            f"Pivot: {fib.get('pivot', 'N/A')} | "
+            f"R1: {fib.get('r1', 'N/A')} R2: {fib.get('r2', 'N/A')} R3: {fib.get('r3', 'N/A')} | "
+            f"S1: {fib.get('s1', 'N/A')} S2: {fib.get('s2', 'N/A')} S3: {fib.get('s3', 'N/A')}"
+        ) if fib else "N/A"
+
+        bb_pct = market_context.get('bb_percent_b')
+        bb_pct_str = f"{bb_pct:.2f}" if bb_pct is not None else "N/A"
+        bb_squeeze_str = "YES" if market_context.get('bb_squeeze') else "no"
+        news_event = market_context.get('nearest_news_event') or "None"
+
         market_text = f"""
 Current Price: {market_context.get('current_price', 'N/A')}
-Trend (EMA20): {market_context.get('ema20_trend', 'N/A')}
-Trend (EMA50): {market_context.get('ema50_trend', 'N/A')}
-Trend (EMA200): {market_context.get('ema200_trend', 'N/A')}
-ATR(14): {market_context.get('atr', 'N/A')}
-Key Support: {market_context.get('support_levels', 'N/A')}
-Key Resistance: {market_context.get('resistance_levels', 'N/A')}
-Session: {market_context.get('session', 'N/A')}
-Daily Range Used: {market_context.get('daily_range_percent', 'N/A')}%"""
+H1 Trend: {market_context.get('overall_trend', 'N/A')} (EMA20: {market_context.get('ema20_trend', 'N/A')}, EMA50: {market_context.get('ema50_trend', 'N/A')}, EMA200: {market_context.get('ema200_trend', 'N/A')})
+HTF Daily Trend: {market_context.get('htf_trend', 'N/A')}
+RSI(14): {market_context.get('rsi', 'N/A')} ({market_context.get('rsi_state', 'N/A')})
+MACD cross: {market_context.get('macd_cross', 'N/A')}  histogram: {market_context.get('histogram', 'N/A')}
+Bollinger %B: {bb_pct_str}  squeeze: {bb_squeeze_str}
+ATR(14): {market_context.get('atr', 'N/A')}  Regime: {market_context.get('volatility_regime', 'N/A')}
+Prev Day High/Low/Close: {market_context.get('prev_day_high', 'N/A')} / {market_context.get('prev_day_low', 'N/A')} / {market_context.get('prev_day_close', 'N/A')}
+Key Support: {market_context.get('support_levels', 'N/A')}  (distance: {market_context.get('distance_to_support_atr', 'N/A')} ATR)
+Key Resistance: {market_context.get('resistance_levels', 'N/A')}  (distance: {market_context.get('distance_to_resistance_atr', 'N/A')} ATR)
+Fibonacci Pivots: {fib_text}
+Last Candle Pattern: {market_context.get('candle_pattern', 'N/A')}
+Session: {market_context.get('session', 'N/A')}  Daily Range Used: {market_context.get('daily_range_percent', 'N/A')}%
+News Risk: {market_context.get('news_risk_level', 'N/A')}  Events in 1h: {market_context.get('news_events_1h', 0)}  Nearest: {news_event}"""
     else:
         market_text = "  Market context unavailable — evaluate based on original thesis"
 
@@ -488,13 +543,13 @@ async def analyze_trade_modified(
     try:
         client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=AI_MODEL,
             messages=[
                 {"role": "system", "content": "You are a professional trading analyst. Respond only with valid JSON."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=1000,
+            max_completion_tokens=1000,
         )
         result = _parse_json_response(response.choices[0].message.content or "{}")
     except Exception as e:
@@ -554,13 +609,13 @@ async def analyze_post_trade(
     try:
         client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=AI_MODEL,
             messages=[
                 {"role": "system", "content": "You are a professional trading analyst. Respond only with valid JSON."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=1500,
+            max_completion_tokens=1500,
         )
         result = _parse_json_response(response.choices[0].message.content or "{}")
     except Exception as e:
@@ -627,13 +682,13 @@ async def generate_weekly_report(
     try:
         client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=AI_MODEL,
             messages=[
                 {"role": "system", "content": "You are a professional trading performance coach. Respond only with valid JSON."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=2000,
+            max_completion_tokens=2000,
         )
         result = _parse_json_response(response.choices[0].message.content or "{}")
     except Exception as e:

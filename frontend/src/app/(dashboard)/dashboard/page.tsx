@@ -17,15 +17,14 @@ import { useDailyStats } from "@/hooks/use-daily-stats";
 import { useReadiness } from "@/hooks/use-readiness";
 
 export default function DashboardPage() {
-  const { openTrades, fetchOpenTrades, fetchTrades } = useTradesStore();
+  const { openTrades, fetchOpenTrades } = useTradesStore();
   const { alerts } = useAlertsStore();
   const { tradesToday, winRate, avgR, todayPnl: statsPnl, todayPnlR: statsPnlR, adherence, isLoading: statsLoading } = useDailyStats();
   const { readinessScore, isLoading: readinessLoading } = useReadiness();
 
   React.useEffect(() => {
     fetchOpenTrades();
-    fetchTrades(); // needed for PatternCost, EdgeFinder, PositionSizer, LossLockout
-  }, [fetchOpenTrades, fetchTrades]);
+  }, [fetchOpenTrades]);
 
   // Realised P&L comes from the stats API (closed trades only).
   // We intentionally do NOT add open-trade pnl from the DB here because those

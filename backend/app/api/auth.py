@@ -1,6 +1,7 @@
 """Authentication routes — register, login, current user."""
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -10,6 +11,7 @@ from app.core.dependencies import get_db, get_current_user
 from app.core.security import hash_password, verify_password, create_access_token
 from app.models.user import User
 from app.models.trading_rules import TradingRules
+from app.models.subscription import Subscription
 from app.schemas.user import UserCreate, UserLogin, UserResponse, TokenResponse
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,16 @@ async def register(
     # Create default trading rules
     rules = TradingRules(user_id=user.id)
     db.add(rules)
+    await db.flush()
+
+    # Create default 7-day trial subscription
+    trial_sub = Subscription(
+        user_id=user.id,
+        plan="operator",
+        status="trial",
+        current_period_end=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+    db.add(trial_sub)
     await db.flush()
 
     # Generate token

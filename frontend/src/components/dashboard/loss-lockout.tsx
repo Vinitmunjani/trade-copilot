@@ -1,41 +1,16 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { ShieldAlert, ShieldCheck, AlertTriangle, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTradesStore } from "@/stores/trades-store";
+import { useLossProtection } from "@/hooks/use-loss-protection";
 
 const LOCKOUT_THRESHOLD = 3; // consecutive losses → lockout
 const WARN_THRESHOLD = 2;    // consecutive losses → warning
 
 export function LossLockout() {
-  const { trades } = useTradesStore();
+  const { consecutiveLosses, lastResults, dollarLost, level, isLoading } = useLossProtection(10, 90);
   const [expanded, setExpanded] = useState(false);
-
-  const { consecutiveLosses, lastResults, dollarLost, level } = useMemo(() => {
-    const closed = trades
-      .filter((t) => t.status === "closed" || t.status === "CLOSED")
-      .filter((t) => t.pnl !== null && t.pnl !== undefined)
-      .sort((a, b) => new Date(b.closed_at ?? b.close_time ?? 0).getTime() - new Date(a.closed_at ?? a.close_time ?? 0).getTime());
-
-    // Count streak of losses from most recent trade backwards
-    let streak = 0;
-    let dollarLost = 0;
-    const lastResults: Array<{ pnl: number; symbol: string }> = [];
-
-    for (const t of closed.slice(0, 10)) {
-      lastResults.push({ pnl: t.pnl!, symbol: t.symbol });
-      if ((t.pnl ?? 0) < 0 && streak === lastResults.length - 1) {
-        streak++;
-        dollarLost += Math.abs(t.pnl!);
-      }
-    }
-
-    const level: "clear" | "warn" | "lockout" =
-      streak >= LOCKOUT_THRESHOLD ? "lockout" : streak >= WARN_THRESHOLD ? "warn" : "clear";
-
-    return { consecutiveLosses: streak, lastResults, dollarLost, level };
-  }, [trades]);
 
   const config = {
     clear: {
@@ -114,7 +89,7 @@ export function LossLockout() {
       {/* Expanded detail */}
       {expanded && (
         <div className="mt-4 space-y-3 border-t border-white/5 pt-4">
-          <p className="text-sm text-muted">{config.sub}</p>
+          <p className="text-sm text-muted">{isLoading ? "Loading latest risk state…" : config.sub}</p>
 
           {/* Last 5 trade P&L dots */}
           <div className="flex items-center gap-2">

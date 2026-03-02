@@ -24,6 +24,8 @@ from app.services.metaapi_provisioning import metaapi_provisioning
 from app.services.metaapi_service import metaapi_service
 from app.config import get_settings
 from app.models.meta_account import MetaAccount
+from app.models.subscription import Subscription
+from app.models.trial_account_claim import TrialAccountClaim
 from app.models.trade import Trade, TradeStatus
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,48 @@ def _is_connected_recently(last_heartbeat, minutes=5):
         # If heartbeat is naive, assume it's UTC
         hb = hb.replace(tzinfo=timezone.utc)
     return (now - hb) < timedelta(minutes=minutes)
+
+
+def _account_fingerprint(login: str, server: str, platform: str) -> str:
+    return f"{str(login).strip()}|{str(server).strip().lower()}|{str(platform).strip().lower()}"
+
+
+async def _has_paid_subscription(db: AsyncSession, user_id: uuid.UUID) -> bool:
+    result = await db.execute(
+        select(Subscription)
+        .where(Subscription.user_id == user_id)
+        .order_by(Subscription.updated_at.desc())
+    )
+    sub = result.scalars().first()
+    if not sub:
+        return False
+
+    status_value = (sub.status or "").lower()
+    paid_statuses = {"active", "trialing", "past_due", "unpaid"}
+    return status_value in paid_statuses and status_value != "trial"
+
+
+async def _is_trial_expired(db: AsyncSession, user_id: uuid.UUID) -> bool:
+    result = await db.execute(
+        select(Subscription)
+        .where(Subscription.user_id == user_id)
+        .order_by(Subscription.updated_at.desc())
+    )
+    sub = result.scalars().first()
+    if not sub:
+        return True
+
+    status_value = (sub.status or "").lower()
+    if status_value != "trial":
+        return False
+
+    if not sub.current_period_end:
+        return False
+
+    period_end = sub.current_period_end
+    if period_end.tzinfo is None:
+        period_end = period_end.replace(tzinfo=timezone.utc)
+    return period_end < datetime.now(timezone.utc)
 
 
 
@@ -69,6 +113,53 @@ async def connect_account(
             )
 
         logger.info(f"Connecting to MetaAPI for account {payload.login} on {payload.server}...")
+
+        # Anti-abuse: free/trial users cannot re-claim trial on an account already
+        # claimed by a different user.
+        fingerprint = _account_fingerprint(payload.login, payload.server, platform)
+        paid_user = await _has_paid_subscription(db, current_user.id)
+        trial_expired = await _is_trial_expired(db, current_user.id)
+
+        if trial_expired and not paid_user:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Your 7-day free trial has ended. Upgrade your plan to reconnect trading accounts.",
+            )
+
+        claim_result = await db.execute(
+            select(TrialAccountClaim).where(TrialAccountClaim.fingerprint == fingerprint)
+        )
+        existing_claim = claim_result.scalar_one_or_none()
+
+        if existing_claim and existing_claim.first_user_id != current_user.id and not paid_user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "This trading account has already used a free trial on another profile. "
+                    "Please upgrade billing on this account to continue."
+                ),
+            )
+
+        if existing_claim:
+            existing_claim.last_user_id = current_user.id
+            existing_claim.last_claimed_at = datetime.now(timezone.utc)
+            existing_claim.claim_count = int(existing_claim.claim_count or 0) + 1
+            db.add(existing_claim)
+        else:
+            db.add(
+                TrialAccountClaim(
+                    fingerprint=fingerprint,
+                    mt_login=str(payload.login).strip(),
+                    mt_server=str(payload.server).strip().lower(),
+                    mt_platform=platform,
+                    first_user_id=current_user.id,
+                    last_user_id=current_user.id,
+                    claim_count=1,
+                    first_claimed_at=datetime.now(timezone.utc),
+                    last_claimed_at=datetime.now(timezone.utc),
+                )
+            )
+        await db.flush()
         
         # Create a new MetaAccount record for this user (support many accounts)
         # We will provision a MetaAPI cloud account and associate it with this MetaAccount
@@ -475,31 +566,63 @@ async def get_trader_data(
     # collect logs for each account if service has them
     from app.services.metaapi_service import metaapi_service
 
+    async def _get_or_reconnect_logs(target_account_id: str, last_heartbeat) -> list[str]:
+        account_logs = metaapi_service.get_logs(target_account_id)
+        if account_logs:
+            return account_logs
+
+        # If this backend process has no in-memory listener/logs for the account,
+        # attempt a best-effort reconnect before returning the placeholder line.
+        # This helps recover after backend restarts without requiring manual reconnect.
+        user_id_str = str(user.id)
+        is_live_connected = metaapi_service.is_account_connected(user_id_str, target_account_id)
+        if not is_live_connected:
+            try:
+                reconnect_result = await metaapi_service.connect(user, account_id=target_account_id)
+                if reconnect_result.get("connected"):
+                    refreshed_logs = metaapi_service.get_logs(target_account_id)
+                    if refreshed_logs:
+                        return refreshed_logs
+                    return [
+                        f"[{datetime.now(timezone.utc).isoformat()}] ✅ Auto-reconnect succeeded for account {target_account_id}."
+                    ]
+                reconnect_error = reconnect_result.get("error") or reconnect_result.get("status")
+                if reconnect_error:
+                    return [
+                        f"[{datetime.now(timezone.utc).isoformat()}] ⚠️ Auto-reconnect failed: {reconnect_error}."
+                    ]
+            except Exception as reconnect_error:
+                logger.warning(
+                    f"Auto-reconnect attempt failed for account {target_account_id}: {reconnect_error}"
+                )
+                return [
+                    f"[{datetime.now(timezone.utc).isoformat()}] ❌ Auto-reconnect exception: {reconnect_error}."
+                ]
+
+        status_label = "connected" if _is_connected_recently(last_heartbeat) else "disconnected"
+        hb = last_heartbeat.isoformat() if last_heartbeat else "never"
+        return [
+            f"[{datetime.now(timezone.utc).isoformat()}] ℹ️ No streaming events captured in this backend session. "
+            f"Status: {status_label}. Last heartbeat: {hb}."
+        ]
+
     logs_map = {}
     all_service_logs = metaapi_service.get_logs() or {}
     now_iso = datetime.now(timezone.utc).isoformat()
     # account entries from MetaAccount table
     for acc in accounts:
         if acc.metaapi_account_id:
-            account_logs = metaapi_service.get_logs(acc.metaapi_account_id)
-            if not account_logs:
-                status_label = "connected" if _is_connected_recently(acc.mt_last_heartbeat) else "disconnected"
-                hb = acc.mt_last_heartbeat.isoformat() if acc.mt_last_heartbeat else "never"
-                account_logs = [
-                    f"[{now_iso}] ℹ️ No streaming events captured in this backend session. "
-                    f"Status: {status_label}. Last heartbeat: {hb}."
-                ]
+            account_logs = await _get_or_reconnect_logs(
+                acc.metaapi_account_id,
+                acc.mt_last_heartbeat,
+            )
             logs_map[acc.metaapi_account_id] = account_logs
     # also consider the legacy user.metaapi_account_id field if present
     if user.metaapi_account_id and user.metaapi_account_id not in logs_map:
-        account_logs = metaapi_service.get_logs(user.metaapi_account_id)
-        if not account_logs:
-            status_label = "connected" if _is_connected_recently(user.mt_last_heartbeat) else "disconnected"
-            hb = user.mt_last_heartbeat.isoformat() if user.mt_last_heartbeat else "never"
-            account_logs = [
-                f"[{now_iso}] ℹ️ No streaming events captured in this backend session. "
-                f"Status: {status_label}. Last heartbeat: {hb}."
-            ]
+        account_logs = await _get_or_reconnect_logs(
+            user.metaapi_account_id,
+            user.mt_last_heartbeat,
+        )
         logs_map[user.metaapi_account_id] = account_logs
 
     # Include any in-memory logs not present in DB mappings (helps right after reconnects)

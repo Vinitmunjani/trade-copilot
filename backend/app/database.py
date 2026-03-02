@@ -50,4 +50,12 @@ async def close_db() -> None:
 
 # Import all models to register them with Base.metadata
 # This MUST happen after Base is defined but before init_db() is called
-from app.models import User, Trade, DailyStats, TradingRules, MetaAccount
+from app.models import (
+    User,
+    Trade,
+    DailyStats,
+    TradingRules,
+    MetaAccount,
+    Subscription,
+    TrialAccountClaim,
+)

@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { Calculator, TrendingDown, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTradesStore } from "@/stores/trades-store";
+import { useLossProtection } from "@/hooks/use-loss-protection";
 
 const STREAK_MODIFIERS: Array<{ losses: number; label: string; modifier: number; color: string }> = [
   { losses: 0, label: "Full size", modifier: 1.0, color: "text-accent" },
@@ -23,26 +23,19 @@ function calcLotSize(balance: number, riskPct: number, stopPips: number): number
 }
 
 export function PositionSizer() {
-  const { trades } = useTradesStore();
+  const { consecutiveLosses, suggestedModifier } = useLossProtection(10, 90);
   const [balance, setBalance] = useState("");
   const [riskPct, setRiskPct] = useState("1");
   const [stopPips, setStopPips] = useState("20");
 
-  const { consecutiveLosses, streakMod } = useMemo(() => {
-    const closed = trades
-      .filter((t) => t.status === "closed" || t.status === "CLOSED")
-      .filter((t) => t.pnl !== null)
-      .sort((a, b) => new Date(b.closed_at ?? b.close_time ?? 0).getTime() - new Date(a.closed_at ?? a.close_time ?? 0).getTime());
+  const streakMod = useMemo(() => {
+    const byLosses = consecutiveLosses >= 3
+      ? STREAK_MODIFIERS[3]
+      : (STREAK_MODIFIERS[consecutiveLosses] ?? STREAK_MODIFIERS[0]);
 
-    let streak = 0;
-    for (const t of closed) {
-      if ((t.pnl ?? 0) < 0) streak++;
-      else break;
-    }
-
-    const streakMod = streak >= 3 ? STREAK_MODIFIERS[3] : (STREAK_MODIFIERS[streak] ?? STREAK_MODIFIERS[0]);
-    return { consecutiveLosses: streak, streakMod };
-  }, [trades]);
+    const byModifier = STREAK_MODIFIERS.find((m) => m.modifier === suggestedModifier);
+    return byModifier ?? byLosses;
+  }, [consecutiveLosses, suggestedModifier]);
 
   const baseLot = calcLotSize(
     parseFloat(balance) || 0,

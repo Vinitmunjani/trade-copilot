@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 import { DollarSign, TrendingDown } from "lucide-react";
-import { useTradesStore } from "@/stores/trades-store";
+import { usePatternCost } from "@/hooks/use-pattern-cost";
 
 const LABEL: Record<string, string> = {
   revenge_trading: "Revenge Trading",
@@ -20,42 +20,20 @@ const LABEL: Record<string, string> = {
 };
 
 export function PatternCost() {
-  const { trades } = useTradesStore();
+  const { rows: apiRows, totalCost, isLoading } = usePatternCost(90, 6);
 
-  const rows = useMemo(() => {
-    const map: Record<string, { cost: number; count: number }> = {};
-
-    for (const trade of trades) {
-      if (trade.status !== "closed" && trade.status !== "CLOSED") continue;
-      if (!trade.pnl) continue;
-
-      const flags = trade.behavioral_flags ?? trade.flags ?? [];
-      if (flags.length === 0) continue;
-
-      for (const flag of flags) {
-        const key = (flag.flag ?? flag.type ?? "unknown").toLowerCase();
-        if (!map[key]) map[key] = { cost: 0, count: 0 };
-        // Only count cost if the trade was a loss; flag caused/coincided with the loss
-        if (trade.pnl < 0) {
-          map[key].cost += Math.abs(trade.pnl);
-        }
-        map[key].count += 1;
-      }
-    }
-
-    return Object.entries(map)
-      .map(([key, { cost, count }]) => ({
-        key,
-        label: LABEL[key] ?? key.replace(/_/g, " "),
-        cost,
-        count,
-      }))
-      .sort((a, b) => b.cost - a.cost)
-      .slice(0, 6);
-  }, [trades]);
+  const rows = useMemo(
+    () =>
+      apiRows.map((r) => ({
+        key: r.key,
+        label: LABEL[r.key] ?? r.key.replace(/_/g, " "),
+        cost: r.cost,
+        count: r.count,
+      })),
+    [apiRows]
+  );
 
   const maxCost = rows[0]?.cost ?? 1;
-  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
 
   return (
     <div className="rounded-2xl border border-white/8 bg-surface/60 p-5">
@@ -75,7 +53,12 @@ export function PatternCost() {
         </div>
       </div>
 
-      {rows.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <DollarSign className="h-8 w-8 text-accent/30" />
+          <p className="text-sm text-muted">Loading pattern cost…</p>
+        </div>
+      ) : rows.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
           <DollarSign className="h-8 w-8 text-accent/30" />
           <p className="text-sm text-muted">No flagged trade losses yet</p>

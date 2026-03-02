@@ -50,6 +50,7 @@ class MetaApiService:
         self._connections: Dict[str, ConnectionState] = {}
         self._ws_manager = None  # Set externally
         self._api = None
+        self._last_api_error: Optional[str] = None
         # keep streaming/event logs per MetaAPI account for debugging/testing
         # keyed by "account_id"; we store only the most recent 200 entries per account
         self._logs: Dict[str, list] = {}
@@ -129,6 +130,7 @@ class MetaApiService:
         token = settings.METAAPI_TOKEN
         if not token:
             logger.warning("METAAPI_TOKEN not configured; MetaAPI client disabled")
+            self._last_api_error = "METAAPI_TOKEN not configured"
             return None
 
         try:
@@ -139,15 +141,23 @@ class MetaApiService:
             # The SDK may expose async connect; attempt to await if present
             connect = getattr(api, "connect", None)
             if callable(connect):
-                maybe_coro = connect()
-                if hasattr(maybe_coro, "__await__"):
-                    await maybe_coro
+                try:
+                    maybe_coro = connect()
+                    if hasattr(maybe_coro, "__await__"):
+                        await maybe_coro
+                except Exception as e:
+                    # Do not disable the client solely because eager connect failed.
+                    # Account-level methods can still succeed and will retry internally.
+                    logger.warning(f"MetaAPI eager connect warning (continuing): {e}")
+                    self._last_api_error = f"MetaAPI eager connect warning: {e}"
 
             self._api = api
+            self._last_api_error = None
             return api
 
         except Exception as e:
             logger.error(f"Failed to initialize MetaAPI client: {e}")
+            self._last_api_error = str(e)
             return None
 
     def set_ws_manager(self, ws_manager: Any) -> None:
@@ -306,7 +316,15 @@ class MetaApiService:
         if api is None:
             logger.info(f"MetaAPI unavailable — user {user_id} in simulation mode")
             state.is_connected = False
-            return {"connected": False, "status": "simulation_mode", "account_id": account_id}
+            error_detail = self._last_api_error or "MetaAPI client unavailable"
+            if account_id:
+                self._append_log(account_id, f"❌ MetaAPI unavailable: {error_detail}")
+            return {
+                "connected": False,
+                "status": "simulation_mode",
+                "account_id": account_id,
+                "error": error_detail,
+            }
 
         try:
             # Get the MetaAPI account
@@ -480,11 +498,34 @@ class MetaApiService:
             state.is_connected = False
             return {"connected": False, "error": str(e), "account_id": account_id}
 
-    async def disconnect(self, user: User, account_id: Optional[str] = None) -> dict:
+    async def _undeploy_account(self, account_id: str) -> bool:
+        """Best-effort undeploy for a MetaAPI account by ID."""
+        if not account_id:
+            return False
+
+        api = await self._get_api()
+        if api is None:
+            return False
+
+        try:
+            account = await api.metatrader_account_api.get_account(account_id)
+            await account.undeploy()
+            self._append_log(account_id, "✓ Account undeployed")
+            return True
+        except Exception as e:
+            logger.debug(f"Failed to undeploy account {account_id}: {e}")
+            self._append_log(account_id, f"⚠️ Undeploy failed: {str(e)[:80]}")
+            return False
+
+    async def disconnect(self, user: User, account_id: Optional[str] = None, force_undeploy: bool = False) -> dict:
         """Disconnect a user's MetaAPI connection.
 
         Args:
             user: User model.
+            account_id: Optional specific MetaAPI account to disconnect.
+            force_undeploy: When True, undeploy the terminal regardless of
+                METAAPI_UNDEPLOY_ON_DISCONNECT setting and even if there is no
+                active in-memory connection state.
 
         Returns:
             Dict with disconnection status.
@@ -496,6 +537,13 @@ class MetaApiService:
         state = self._connections.get(conn_key)
 
         if not state:
+            if force_undeploy and account_id:
+                undeployed = await self._undeploy_account(account_id)
+                return {
+                    "disconnected": True,
+                    "status": "was_not_connected",
+                    "undeployed": undeployed,
+                }
             return {"disconnected": True, "status": "was_not_connected"}
 
         # Log disconnection start
@@ -520,13 +568,18 @@ class MetaApiService:
 
             # Respect setting to avoid undeploy on user-initiated disconnects.
             settings = get_settings()
-            if state.account and getattr(settings, "METAAPI_UNDEPLOY_ON_DISCONNECT", False):
+            should_undeploy = force_undeploy or getattr(settings, "METAAPI_UNDEPLOY_ON_DISCONNECT", False)
+            if state.account and should_undeploy:
                 try:
                     await state.account.undeploy()
                     if account_id:
                         self._append_log(account_id, "✓ Account undeployed")
                 except Exception as e:
                     logger.debug(f"Failed to undeploy account {account_id}: {e}")
+
+            # If there was no account object on state, still attempt undeploy by ID when requested.
+            if (not state.account) and should_undeploy and account_id:
+                await self._undeploy_account(account_id)
 
         except Exception as e:
             logger.error(f"Error disconnecting MetaAPI for user {user_id}: {e}")
@@ -783,6 +836,7 @@ class MetaApiService:
             try:
                 # Try to get the close price from history_storage for this position
                 close_price = None
+                close_pnl = None
                 try:
                     conn_key = f"{user_id}:{account_id}"
                     state = self._connections.get(conn_key)
@@ -797,12 +851,19 @@ class MetaApiService:
                             if close_deals:
                                 latest = max(close_deals, key=lambda d: d.get("time") or 0)
                                 close_price = float(latest["price"])
+                                deal_profit = latest.get("profit")
+                                if deal_profit is not None:
+                                    deal_commission = latest.get("commission") or 0.0
+                                    deal_swap = latest.get("swap") or 0.0
+                                    close_pnl = float(deal_profit) + float(deal_commission) + float(deal_swap)
                 except Exception:
                     pass
 
                 trade_data: dict = {"external_id": ext_id}
                 if close_price is not None:
                     trade_data["exit_price"] = close_price
+                if close_pnl is not None:
+                    trade_data["pnl"] = close_pnl
 
                 await trade_processor.process_trade_closed(user_id, trade_data)
                 closed_count += 1

@@ -48,18 +48,14 @@ export default function SettingsPage() {
   const [connectionError, setConnectionError] = useState("");
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Only fetch account info if we don't have cached data
+  // Always fetch fresh account info on page load (persisted store can be stale)
   useEffect(() => {
-    if (!hasInitialized && !tradingAccount) {
-      console.log("⚙️ Settings: No cached account data, fetching...");
-      fetchAccountInfo().then(() => {
-        setHasInitialized(true);
-      }).catch(() => {
-        setHasInitialized(true);
-      });
-    } else if (tradingAccount) {
-      console.log("✅ Settings: Using cached account data");
-      setHasInitialized(true);
+    if (!hasInitialized) {
+      console.log("⚙️ Settings: Refreshing account data...");
+      fetchAccountInfo()
+        .finally(() => {
+          setHasInitialized(true);
+        });
     }
 
     // Load accounts list and streaming logs
@@ -77,7 +73,7 @@ export default function SettingsPage() {
     if (user?.id) {
       fetchStreamingLogs?.(user.id);
     }
-  }, []);
+  }, [hasInitialized, fetchAccountInfo, fetchAccounts, fetchStreamingLogs, tradingAccount, user?.id]);
 
   // Auto-refresh streaming logs every 2 seconds when user is on this page
   useEffect(() => {

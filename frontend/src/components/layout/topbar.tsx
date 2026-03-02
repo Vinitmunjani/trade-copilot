@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { useAlertsStore } from "@/stores/alerts-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useBillingSubscription } from "@/hooks/use-billing-subscription";
 import { MobileNav } from "./mobile-nav";
 
 interface TopbarProps {
@@ -25,6 +26,15 @@ export function Topbar({ isConnected }: TopbarProps) {
   const { user, logout } = useAuthStore();
   const { alerts, unreadCount, acknowledgeAlert, clearAll } = useAlertsStore();
   const { brokerConnected } = useSettingsStore();
+  const { subscription } = useBillingSubscription();
+
+  const currentPlan = (() => {
+    const plan = (subscription?.plan || "operator").toLowerCase();
+    if (["operator", "tactician", "sovereign"].includes(plan)) {
+      return plan.charAt(0).toUpperCase() + plan.slice(1);
+    }
+    return "Operator";
+  })();
 
   const severityIcon = (severity: string) => {
     if (severity === "high") return <AlertTriangle className="h-3.5 w-3.5 text-red-400" />;
@@ -134,7 +144,7 @@ export function Topbar({ isConnected }: TopbarProps) {
                     {user?.name?.charAt(0).toUpperCase() || <Activity className="h-4 w-4" />}
                   </div>
                   <div className="hidden text-left lg:block">
-                    <p className="text-xs text-muted">Operator</p>
+                    <p className="text-xs text-muted">{currentPlan}</p>
                     <p className="text-sm text-foreground">{user?.name || "Trader"}</p>
                   </div>
                 </div>

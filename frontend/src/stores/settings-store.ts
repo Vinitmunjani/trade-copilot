@@ -87,7 +87,26 @@ export const useSettingsStore = create<SettingsState>()(
           const { data } = await api.get("/dev/trader-data", {
             params: { user_id: userId },
           });
-          set({ streamingLogs: data.streaming_logs || {} });
+          const connectedAccounts = Number(data?.summary?.connected_accounts || 0);
+          const liveConnected = connectedAccounts > 0;
+
+          set((state) => {
+            const current = state.tradingAccount;
+            return {
+              streamingLogs: data.streaming_logs || {},
+              brokerConnected: liveConnected,
+              tradingAccount: current
+                ? {
+                    ...current,
+                    connected: liveConnected,
+                    connection_status: liveConnected ? "connected" : (current.connection_status || "linked"),
+                    message: liveConnected
+                      ? "Connected"
+                      : (current.message || "Linked — waiting for terminal heartbeat"),
+                  }
+                : current,
+            };
+          });
         } catch (err) {
           console.error("Failed to fetch streaming logs", err);
           set({ streamingLogs: {} });

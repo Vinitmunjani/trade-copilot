@@ -50,7 +50,7 @@ def _build_trade_payload(trade: Trade) -> dict:
         "sl": trade.sl,
         "tp": trade.tp,
         "lot_size": trade.lot_size,
-        "pnl": round(trade.pnl, 2) if trade.pnl is not None else None,
+        "pnl": float(trade.pnl) if trade.pnl is not None else None,
         "pnl_r": trade.pnl_r,
         "status": trade.status.value,
         "opened_at": trade.open_time.isoformat() if trade.open_time else None,
@@ -500,7 +500,13 @@ class TradeProcessingService:
                     # (e.g. fast scalp, reconnect reconciliation) — fall back to
                     # entry_price so the row is at least consistent; the broker
                     # pnl field still gives the correct profit in account currency.
-                    row.exit_price = float(raw_exit) if raw_exit else row.entry_price
+                    if raw_exit is None or raw_exit == "":
+                        row.exit_price = row.entry_price
+                    else:
+                        try:
+                            row.exit_price = float(raw_exit)
+                        except (TypeError, ValueError):
+                            row.exit_price = row.entry_price
 
                     if broker_pnl is not None:
                         # Use broker-provided P&L (already in account currency — correct for all instruments)
@@ -515,15 +521,15 @@ class TradeProcessingService:
                             else (row.entry_price - row.exit_price)
                         if row.entry_price > 1000:
                             # Crypto CFD — contract size is 1 coin, priced directly in USD
-                            row.pnl = round(price_diff * row.lot_size, 2)
+                            row.pnl = price_diff * row.lot_size
                         elif row.entry_price > 20:
                             pip_size = 0.01
                             pip_value = 10.0
-                            row.pnl = round((price_diff / pip_size) * pip_value * row.lot_size, 2)
+                            row.pnl = (price_diff / pip_size) * pip_value * row.lot_size
                         else:
                             pip_size = 0.0001
                             pip_value = 10.0
-                            row.pnl = round((price_diff / pip_size) * pip_value * row.lot_size, 2)
+                            row.pnl = (price_diff / pip_size) * pip_value * row.lot_size
 
                     if row.sl and row.entry_price:
                         risk = abs(row.entry_price - row.sl)
@@ -640,6 +646,17 @@ class TradeProcessingService:
 
                 trade.sl = new_sl
                 trade.tp = new_tp
+
+                # Re-run behavioral checks so flags reflect the updated SL/TP state.
+                # This clears stale alerts like `missing_sl_tp` when protection is added.
+                rules_result = await db.execute(
+                    select(TradingRules).where(TradingRules.user_id == uuid.UUID(user_id))
+                )
+                rules = rules_result.scalar_one_or_none()
+                account_balance = float(trade_data.get("account_balance") or 10000.0)
+                alerts = await run_all_checks(db, user_id, trade, rules, account_balance=account_balance)
+                trade.behavioral_flags = [a.model_dump() for a in alerts]
+
                 await db.commit()
 
                 # Write modified log
@@ -647,7 +664,11 @@ class TradeProcessingService:
                     trade_id=trade.id,
                     user_id=trade.user_id,
                     event_type="modified",
-                    payload={"sl": trade.sl, "tp": trade.tp},
+                    payload={
+                        "sl": trade.sl,
+                        "tp": trade.tp,
+                        "behavioral_flags": trade.behavioral_flags or [],
+                    },
                 ))
                 await db.commit()
 

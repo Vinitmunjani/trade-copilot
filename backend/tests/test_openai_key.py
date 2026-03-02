@@ -14,9 +14,9 @@ async def test_openai_key_works():
         import openai
         client = openai.AsyncOpenAI(api_key=key)
         resp = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.2",
             messages=[{"role": "user", "content": "Say hello in one word."}],
-            max_tokens=10,
+            max_completion_tokens=10,
         )
         content = resp.choices[0].message.content if resp.choices else None
         assert content and len(content) > 0

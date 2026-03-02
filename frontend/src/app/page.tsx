@@ -43,7 +43,7 @@ const featureCategories = [
     color: "text-accent",
     bg: "bg-accent/10",
     dot: "bg-accent",
-    description: "GPT-4o analysis woven into every stage of your trade lifecycle.",
+    description: "GPT-5.2 analysis woven into every stage of your trade lifecycle.",
     items: [
       "Pre-trade score (1–10) with strengths & issues",
       "Post-trade review with execution + plan adherence scores",
@@ -93,7 +93,7 @@ const featureCards = [
   {
     icon: Target,
     title: "Pre-Trade AI Score",
-    description: "Before you commit capital, GPT-4o rates the trade 1–10 across risk, setup quality and market alignment.",
+    description: "Before you commit capital, GPT-5.2 rates the trade 1–10 across risk, setup quality and market alignment.",
   },
   {
     icon: BookOpen,
@@ -338,7 +338,7 @@ export default function HomePage() {
                 Everything you need to trade with discipline.
               </h2>
               <p className="text-muted max-w-xl mx-auto">
-                The only platform that combines live broker data, GPT-4o intelligence
+                The only platform that combines live broker data, GPT-5.2 intelligence
                 and behavioural science into a single adaptive terminal.
               </p>
             </div>
@@ -349,7 +349,7 @@ export default function HomePage() {
                 <div className="space-y-8">
                   <div className="stat-pill w-fit border-accent/30 bg-accent/10 text-accent">
                     <Brain className="h-3.5 w-3.5" />
-                    GPT-4o Powered
+                    GPT-5.2 Powered
                   </div>
                   <div className="space-y-4">
                     <p className="text-xs uppercase tracking-[0.4em] text-muted">AI Intelligence</p>
@@ -357,7 +357,7 @@ export default function HomePage() {
                       Analysis at every stage of your trade lifecycle.
                     </h3>
                     <p className="text-muted">
-                      Before entry, during execution, and after close — GPT-4o grades your decision-making and surfaces what your instincts miss.
+                      Before entry, during execution, and after close — GPT-5.2 grades your decision-making and surfaces what your instincts miss.
                     </p>
                   </div>
                   <ul className="space-y-3">
@@ -615,7 +615,7 @@ export default function HomePage() {
                 <span className="text-sm font-medium tracking-[0.08em] text-muted">ampere.capital</span>
               </div>
               <p className="max-w-xs text-sm text-muted leading-relaxed">
-                Precision coaching for traders who treat discipline as an edge. Live broker data, GPT-4o intelligence and behavioural science — unified.
+                Precision coaching for traders who treat discipline as an edge. Live broker data, GPT-5.2 intelligence and behavioural science — unified.
               </p>
               <div className="flex items-center gap-3">
                 {[

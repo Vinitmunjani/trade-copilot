@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # AI Keys
     OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-5.2"
     ANTHROPIC_API_KEY: str = ""
 
     # JWT

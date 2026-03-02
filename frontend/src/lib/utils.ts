@@ -7,12 +7,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(value: number, currency = "USD"): string {
+  const abs = Math.abs(value);
+  const fractionDigits = abs > 0 && abs < 1 ? 4 : 2;
   const formatted = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Math.abs(value));
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(abs);
   return value >= 0 ? `+${formatted}` : `-${formatted}`;
 }
 

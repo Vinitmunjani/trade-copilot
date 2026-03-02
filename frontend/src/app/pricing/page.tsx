@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight, Shield, Zap, Crown, Check, X, Sparkles,
+  ArrowRight, Shield, Zap, Crown, Check, X, Sparkles, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AmpereLogo } from "@/components/ui/ampere-logo";
 import { cn } from "@/lib/utils";
+import api from "@/lib/api";
 
 // ─── Psychological architecture ─────────────────────────────────────────────
 // 1. ANCHORING    — Sovereign ($99) makes Tactician ($49) feel cheap
@@ -72,7 +73,7 @@ const pricingPlans = [
       { label: "Full pattern analytics dashboard", ok: true },
       { label: "Unlimited AI chat assistant", ok: true },
       { label: "Multi-account support", ok: false },
-      { label: "Priority GPT-4o + prop desk exports", ok: false },
+      { label: "Priority GPT-5.2 + prop desk exports", ok: false },
     ],
   },
   {
@@ -92,7 +93,7 @@ const pricingPlans = [
     callout: null,
     features: [
       { label: "Up to 3 broker accounts", ok: true },
-      { label: "Unlimited AI analyses (priority GPT-4o)", ok: true },
+      { label: "Unlimited AI analyses (priority GPT-5.2)", ok: true },
       { label: "All 12 patterns + custom rule engine", ok: true },
       { label: "AI post-trade review on every trade", ok: true },
       { label: "Per-session readiness score", ok: true },
@@ -114,6 +115,38 @@ const psychProof = [
 export default function PricingPage() {
   const router = useRouter();
   const [annual, setAnnual] = useState(false);
+  const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
+
+  const startCheckout = async (planId: string) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+    if (!token) {
+      router.push(`/register?plan=${planId}`);
+      return;
+    }
+
+    setCheckoutPlanId(planId);
+    try {
+      const origin = window.location.origin;
+      const { data } = await api.post("/billing/checkout", {
+        plan: planId,
+        interval: annual ? "annual" : "monthly",
+        success_url: `${origin}/billing?checkout=success`,
+        cancel_url: `${origin}/pricing?checkout=cancel`,
+      });
+
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+
+      router.push(`/billing?plan=${planId}`);
+    } catch {
+      router.push(`/billing?plan=${planId}`);
+    } finally {
+      setCheckoutPlanId(null);
+    }
+  };
 
   return (
     <div className="relative flex min-h-screen flex-col">
@@ -266,8 +299,10 @@ export default function PricingPage() {
                     size="lg"
                     variant={plan.ctaVariant}
                     className={cn("w-full rounded-2xl text-sm", plan.ctaExtraClass)}
-                    onClick={() => router.push(`/register?plan=${plan.id}`)}
+                    onClick={() => startCheckout(plan.id)}
+                    disabled={checkoutPlanId === plan.id}
                   >
+                    {checkoutPlanId === plan.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {plan.ctaLabel}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>

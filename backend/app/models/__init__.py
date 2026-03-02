@@ -6,5 +6,16 @@ from app.models.trade_log import TradeLog
 from app.models.daily_stats import DailyStats
 from app.models.trading_rules import TradingRules
 from app.models.meta_account import MetaAccount
+from app.models.subscription import Subscription
+from app.models.trial_account_claim import TrialAccountClaim
 
-__all__ = ["User", "Trade", "TradeLog", "DailyStats", "TradingRules", "MetaAccount"]
+__all__ = [
+	"User",
+	"Trade",
+	"TradeLog",
+	"DailyStats",
+	"TradingRules",
+	"MetaAccount",
+	"Subscription",
+	"TrialAccountClaim",
+]

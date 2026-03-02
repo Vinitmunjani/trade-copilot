@@ -1,56 +1,13 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { Target, Trophy, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTradesStore } from "@/stores/trades-store";
-
-type GroupBy = "symbol" | "session";
-
-interface EdgeRow {
-  key: string;
-  trades: number;
-  wins: number;
-  winRate: number;
-  avgPnl: number;
-  totalPnl: number;
-}
+import { useEdgeStats, type EdgeGroupBy } from "@/hooks/use-edge-stats";
 
 export function EdgeFinder() {
-  const { trades } = useTradesStore();
-  const [groupBy, setGroupBy] = useState<GroupBy>("symbol");
-
-  const rows: EdgeRow[] = useMemo(() => {
-    const closed = trades.filter(
-      (t) => (t.status === "closed" || t.status === "CLOSED") && t.pnl !== null
-    );
-
-    const map: Record<string, { wins: number; total: number; pnl: number }> = {};
-
-    for (const t of closed) {
-      const key =
-        groupBy === "symbol"
-          ? t.symbol.toUpperCase()
-          : (t.session ?? "unknown").replace(/_/g, " ");
-
-      if (!map[key]) map[key] = { wins: 0, total: 0, pnl: 0 };
-      map[key].total++;
-      map[key].pnl += t.pnl!;
-      if ((t.pnl ?? 0) > 0) map[key].wins++;
-    }
-
-    return Object.entries(map)
-      .map(([key, { wins, total, pnl }]) => ({
-        key,
-        trades: total,
-        wins,
-        winRate: total > 0 ? (wins / total) * 100 : 0,
-        avgPnl: total > 0 ? pnl / total : 0,
-        totalPnl: pnl,
-      }))
-      .filter((r) => r.trades >= 2) // need at least 2 trades to be meaningful
-      .sort((a, b) => b.winRate - a.winRate || b.totalPnl - a.totalPnl);
-  }, [trades, groupBy]);
+  const [groupBy, setGroupBy] = useState<EdgeGroupBy>("symbol");
+  const { rows, isLoading } = useEdgeStats(groupBy, 90, 2, 6);
 
   const top = rows[0];
   const bottom = rows[rows.length - 1];
@@ -69,7 +26,7 @@ export function EdgeFinder() {
           </div>
         </div>
         <div className="flex rounded-lg border border-white/10 overflow-hidden text-xs">
-          {(["symbol", "session"] as GroupBy[]).map((g) => (
+          {(["symbol", "session"] as EdgeGroupBy[]).map((g) => (
             <button
               key={g}
               onClick={() => setGroupBy(g)}
@@ -84,7 +41,12 @@ export function EdgeFinder() {
         </div>
       </div>
 
-      {rows.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <Clock className="h-8 w-8 text-accent/30" />
+          <p className="text-sm text-muted">Loading edge stats…</p>
+        </div>
+      ) : rows.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
           <Clock className="h-8 w-8 text-accent/30" />
           <p className="text-sm text-muted">Need more closed trades</p>
