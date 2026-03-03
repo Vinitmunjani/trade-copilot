@@ -44,6 +44,18 @@ export function TradeJournalEntry({ trade, defaultOpen = false }: TradeJournalEn
   const pnl = trade.pnl ?? null;
   const sessionLabel = SESSIONS.find((s) => s.value === trade.session)?.label ?? trade.session ?? "—";
   const flags = trade.flags ?? trade.behavioral_flags ?? [];
+  const displayR = (() => {
+    const stopLoss = trade.stop_loss ?? trade.sl;
+    if (!isClosed || trade.exit_price == null || stopLoss == null) return trade.pnl_r;
+
+    const risk = Math.abs(trade.entry_price - stopLoss);
+    if (risk <= 0) return trade.pnl_r;
+
+    const move = isBuy
+      ? trade.exit_price - trade.entry_price
+      : trade.entry_price - trade.exit_price;
+    return Number((move / risk).toFixed(3));
+  })();
 
   return (
     <Card
@@ -97,7 +109,7 @@ export function TradeJournalEntry({ trade, defaultOpen = false }: TradeJournalEn
             <p className="text-xs text-slate-400">Duration</p>
             <p className="text-sm text-slate-300 flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {formatDuration(trade.duration_seconds ?? (trade.duration_minutes !== null ? (trade.duration_minutes ?? 0) * 60 : null))}
+              {formatDuration(trade.duration_seconds ?? (trade.duration_minutes != null ? (trade.duration_minutes ?? 0) * 60 : null))}
             </p>
           </div>
 
@@ -112,14 +124,14 @@ export function TradeJournalEntry({ trade, defaultOpen = false }: TradeJournalEn
             >
               {pnl !== null ? formatCurrency(pnl) : "Open"}
             </p>
-            {trade.pnl_r !== null && (
+            {displayR !== null && (
               <p
                 className={cn(
                   "text-xs",
-                  (trade.pnl_r ?? 0) >= 0 ? "text-emerald-400/70" : "text-red-400/70"
+                  (displayR ?? 0) >= 0 ? "text-emerald-400/70" : "text-red-400/70"
                 )}
               >
-                {formatR(trade.pnl_r)}
+                {formatR(displayR)}
               </p>
             )}
           </div>

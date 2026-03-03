@@ -41,7 +41,7 @@ const getGradeColor = (grade: string) => {
     case "C": return "text-amber-400 bg-amber-500/10 border-amber-500/20";
     case "D": return "text-orange-400 bg-orange-500/10 border-orange-500/20";
     case "F": return "text-red-400 bg-red-500/10 border-red-500/20";
-    default: return "text-slate-400 bg-slate-500/10 border-slate-500/20";
+    default: return "text-muted bg-surface-muted border-border";
   }
 };
 
@@ -75,8 +75,8 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-100">Weekly Reports</h1>
-          <p className="text-slate-400 mt-1">
+          <h1 className="text-3xl font-bold text-foreground">Weekly Reports</h1>
+          <p className="text-muted mt-1">
             Performance reviews generated from your real trade data
           </p>
         </div>
@@ -116,12 +116,12 @@ export default function ReportsPage() {
           {reports.map((report) => (
             <Card key={report.id} className="overflow-hidden">
               <CardHeader 
-                className="cursor-pointer hover:bg-slate-800/50 transition-colors"
+                className="cursor-pointer hover:bg-surface-muted/60 transition-colors"
                 onClick={() => toggleReport(report.id)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-lg bg-slate-800 flex items-center justify-center">
+                    <div className="h-12 w-12 rounded-[18px] bg-surface-muted border border-border flex items-center justify-center">
                       <FileText className="h-5 w-5 text-emerald-400" />
                     </div>
                     <div>
@@ -133,7 +133,7 @@ export default function ReportsPage() {
                           Grade {report.grade}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-slate-400">
+                      <div className="flex items-center gap-4 mt-2 text-sm text-muted">
                         <span>{report.total_trades} trades</span>
                         <span>•</span>
                         <span className={report.total_pnl >= 0 ? "text-emerald-400" : "text-red-400"}>
@@ -156,44 +156,44 @@ export default function ReportsPage() {
                       <TrendingDown className="h-5 w-5 text-red-400" />
                     )}
                     {expandedReport === report.id ? (
-                      <ChevronUp className="h-5 w-5 text-slate-400" />
+                      <ChevronUp className="h-5 w-5 text-muted" />
                     ) : (
-                      <ChevronDown className="h-5 w-5 text-slate-400" />
+                      <ChevronDown className="h-5 w-5 text-muted" />
                     )}
                   </div>
                 </div>
               </CardHeader>
 
               {expandedReport === report.id && (
-                <CardContent className="border-t border-slate-800">
+                <CardContent className="border-t border-border">
                   <div className="space-y-6 pt-6">
                     {/* Summary */}
                     <div>
-                      <h4 className="font-semibold text-slate-200 mb-2">Summary</h4>
-                      <p className="text-sm text-slate-300 leading-relaxed">{report.summary}</p>
+                      <h4 className="font-semibold text-foreground mb-2">Summary</h4>
+                      <p className="text-sm text-muted leading-relaxed">{report.summary}</p>
                     </div>
 
                     {/* Key Metrics */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center p-3 rounded-lg bg-slate-800/50">
-                        <div className="text-lg font-bold text-slate-100">{report.total_trades}</div>
-                        <div className="text-xs text-slate-400">Trades</div>
+                      <div className="text-center p-3 rounded-[18px] bg-surface-muted border border-border">
+                        <div className="text-lg font-bold text-foreground">{report.total_trades}</div>
+                        <div className="text-xs text-muted">Trades</div>
                       </div>
-                      <div className="text-center p-3 rounded-lg bg-slate-800/50">
+                      <div className="text-center p-3 rounded-[18px] bg-surface-muted border border-border">
                         <div className={cn("text-lg font-bold", report.total_pnl >= 0 ? "text-emerald-400" : "text-red-400")}>
                           {formatCurrency(report.total_pnl)}
                         </div>
-                        <div className="text-xs text-slate-400">P&L</div>
+                        <div className="text-xs text-muted">P&L</div>
                       </div>
-                      <div className="text-center p-3 rounded-lg bg-slate-800/50">
-                        <div className="text-lg font-bold text-slate-100">{formatPercent(report.win_rate)}</div>
-                        <div className="text-xs text-slate-400">Win Rate</div>
+                      <div className="text-center p-3 rounded-[18px] bg-surface-muted border border-border">
+                        <div className="text-lg font-bold text-foreground">{formatPercent(report.win_rate)}</div>
+                        <div className="text-xs text-muted">Win Rate</div>
                       </div>
-                      <div className="text-center p-3 rounded-lg bg-slate-800/50">
+                      <div className="text-center p-3 rounded-[18px] bg-surface-muted border border-border">
                         <div className={cn("text-lg font-bold", report.avg_r >= 0 ? "text-emerald-400" : "text-red-400")}>
                           {report.avg_r >= 0 ? "+" : ""}{report.avg_r.toFixed(1)}R
                         </div>
-                        <div className="text-xs text-slate-400">Avg R</div>
+                        <div className="text-xs text-muted">Avg R</div>
                       </div>
                     </div>
 
@@ -203,7 +203,7 @@ export default function ReportsPage() {
                         <h4 className="font-semibold text-emerald-400 mb-3">💪 Strengths</h4>
                         <ul className="space-y-2">
                           {report.strengths.map((s, i) => (
-                            <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                            <li key={i} className="text-sm text-muted flex items-start gap-2">
                               <span className="text-emerald-400 text-xs mt-1">✓</span>
                               {s}
                             </li>
@@ -214,7 +214,7 @@ export default function ReportsPage() {
                         <h4 className="font-semibold text-amber-400 mb-3">🎯 Areas for Improvement</h4>
                         <ul className="space-y-2">
                           {report.weaknesses.map((w, i) => (
-                            <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                            <li key={i} className="text-sm text-muted flex items-start gap-2">
                               <span className="text-amber-400 text-xs mt-1">!</span>
                               {w}
                             </li>
@@ -224,18 +224,18 @@ export default function ReportsPage() {
                     </div>
 
                     {/* Top Suggestion */}
-                    <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
-                      <h4 className="font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                    <div className="p-4 rounded-[18px] bg-surface-muted border border-border">
+                      <h4 className="font-semibold text-foreground mb-2 flex items-center gap-2">
                         <Brain className="h-4 w-4 text-emerald-400" />
                         Recommendation
                       </h4>
-                      <p className="text-sm text-slate-300">{report.top_suggestion}</p>
+                      <p className="text-sm text-muted">{report.top_suggestion}</p>
                     </div>
 
                     {/* Patterns Detected */}
                     {report.patterns_detected.length > 0 && (
                       <div>
-                        <h4 className="font-semibold text-slate-200 mb-3">Behavioral Patterns Flagged</h4>
+                        <h4 className="font-semibold text-foreground mb-3">Behavioral Patterns Flagged</h4>
                         <div className="flex flex-wrap gap-2">
                           {report.patterns_detected.map((pattern, i) => (
                             <Badge key={i} variant="warning" className="text-xs">

@@ -76,18 +76,18 @@ export function PatternTimeline({ patterns = [] }: PatternTimelineProps) {
               <div key={pattern.id} className="relative">
                 {/* Vertical line */}
                 {!isLast && (
-                  <div className="absolute left-6 top-12 bottom-0 w-px bg-slate-700" />
+                  <div className="absolute left-6 top-12 bottom-0 w-px bg-border" />
                 )}
 
                 <div className="flex items-start gap-4">
                   {/* Icon */}
                   <div
-                    className={`h-12 w-12 rounded-full border-2 bg-slate-900 flex items-center justify-center shrink-0 ${
+                    className={`h-12 w-12 rounded-full border-2 bg-surface-muted flex items-center justify-center shrink-0 ${
                       pattern.severity === "high"
                         ? "border-red-500/50 text-red-400"
                         : pattern.severity === "medium"
                         ? "border-amber-500/50 text-amber-400"
-                        : "border-slate-600 text-slate-400"
+                        : "border-border text-muted"
                     }`}
                   >
                     <Icon className="h-5 w-5" />
@@ -107,7 +107,7 @@ export function PatternTimeline({ patterns = [] }: PatternTimelineProps) {
                                 ? "destructive"
                                 : pattern.severity === "medium"
                                 ? "warning"
-                                : "secondary"
+                                : "outline"
                             }
                             className="text-[10px]"
                           >

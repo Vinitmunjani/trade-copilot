@@ -30,7 +30,6 @@ const config: Config = {
       },
       boxShadow: {
         glow: "0 0 80px rgba(16, 185, 129, 0.25)",
-        card: "0 20px 60px rgba(4, 120, 87, 0.15)",
       },
       borderRadius: {
         lg: "var(--radius-lg)",

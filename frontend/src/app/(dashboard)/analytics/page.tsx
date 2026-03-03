@@ -193,27 +193,27 @@ export default function AnalyticsPage() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-6 rounded-lg bg-slate-900 border border-slate-800 text-center">
+        <div className="p-6 rounded-[24px] border border-white/10 bg-surface text-center">
           <div className={`text-3xl font-bold mb-2 ${analyticsData?.totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             ${analyticsData?.totalPnL || 0}
           </div>
-          <div className="text-sm text-slate-400">Total P&L</div>
+          <div className="text-sm text-muted">Total P&L</div>
           <div className={`text-xs mt-1 ${analyticsData?.totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             From {analyticsData?.totalTrades || 0} trades
           </div>
         </div>
         
-        <div className="p-6 rounded-lg bg-slate-900 border border-slate-800 text-center">
-          <div className="text-3xl font-bold text-slate-100 mb-2">{analyticsData?.avgR || 0}R</div>
-          <div className="text-sm text-slate-400">Average R Multiple</div>
-          <div className="text-xs text-slate-400 mt-1">Per closed trade</div>
+        <div className="p-6 rounded-[24px] border border-white/10 bg-surface text-center">
+          <div className="text-3xl font-bold text-foreground mb-2">{analyticsData?.avgR || 0}R</div>
+          <div className="text-sm text-muted">Average R Multiple</div>
+          <div className="text-xs text-muted mt-1">Per closed trade</div>
         </div>
         
-        <div className="p-6 rounded-lg bg-slate-900 border border-slate-800 text-center">
+        <div className="p-6 rounded-[24px] border border-white/10 bg-surface text-center">
           <div className={`text-3xl font-bold mb-2 ${analyticsData?.winRate && analyticsData.winRate > 50 ? 'text-emerald-400' : 'text-red-400'}`}>
             {analyticsData?.winRate || 0}%
           </div>
-          <div className="text-sm text-slate-400">Overall Win Rate</div>
+          <div className="text-sm text-muted">Overall Win Rate</div>
           <div className={`text-xs mt-1 ${analyticsData?.winRate && analyticsData.winRate > 50 ? 'text-emerald-400' : 'text-red-400'}`}>
             {analyticsData?.winRate && analyticsData.winRate > 50 ? '✓ Above 50%' : 'Below 50%'}
           </div>

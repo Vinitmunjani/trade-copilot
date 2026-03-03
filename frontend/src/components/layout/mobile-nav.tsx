@@ -36,7 +36,7 @@ export function MobileNav() {
     <div className="md:hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="rounded-full border border-white/10 p-2 text-foreground/70 hover:bg-white/5"
+        className="rounded-full border border-border bg-surface-muted p-2 text-muted hover:bg-surface-contrast hover:text-foreground"
       >
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
@@ -44,9 +44,9 @@ export function MobileNav() {
       {open && (
         <>
           <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="fixed left-0 top-0 bottom-0 z-50 flex w-72 flex-col border-r border-white/10 bg-surface/95 backdrop-blur-2xl">
-            <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/20 text-accent text-sm font-semibold tracking-wide">
+          <div className="fixed left-0 top-0 bottom-0 z-50 flex w-72 flex-col border-r border-border bg-surface">
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-surface-contrast text-accent text-sm font-semibold tracking-wide">
                 AC
               </div>
               <div>
@@ -64,8 +64,8 @@ export function MobileNav() {
                     className={cn(
                       "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium",
                       isActive
-                        ? "bg-white/10 text-foreground"
-                        : "text-muted hover:text-foreground hover:bg-white/5"
+                        ? "border border-border bg-surface-muted text-foreground"
+                        : "text-muted hover:text-foreground hover:bg-surface-muted/70"
                     )}
                   >
                     <item.icon className="h-5 w-5" />

@@ -28,7 +28,7 @@ const getIntensity = (pnl: number) => {
 
 const getCellColor = (pnl: number, trades: number) => {
   if (trades === 0) {
-    return "bg-slate-800 border-slate-700";
+    return "bg-transparent border-border";
   }
   
   const intensity = getIntensity(pnl);
@@ -39,7 +39,7 @@ const getCellColor = (pnl: number, trades: number) => {
     return `bg-red-500/${Math.max(10, Math.floor(intensity * 50))} border-red-500/30 text-red-100`;
   }
   
-  return "bg-slate-800 border-slate-700";
+  return "bg-transparent border-border";
 };
 
 interface SessionHeatmapProps {
@@ -127,7 +127,7 @@ export function SessionHeatmap({ trades = [] }: SessionHeatmapProps) {
               {days.map((day) => (
                 <div
                   key={day}
-                  className="text-center text-xs font-medium text-slate-400 p-2"
+                  className="text-center text-xs font-medium text-muted p-2"
                 >
                   {day}
                 </div>
@@ -137,7 +137,7 @@ export function SessionHeatmap({ trades = [] }: SessionHeatmapProps) {
             {/* Rows */}
             {sessions.map((session) => (
               <div key={session.key} className="grid grid-cols-6 gap-2 mb-2">
-                <div className="flex items-center text-sm font-medium text-slate-300 p-2">
+                <div className="flex items-center text-sm font-medium text-foreground p-2">
                   {session.label}
                 </div>
                 {days.map((day) => {
@@ -163,7 +163,7 @@ export function SessionHeatmap({ trades = [] }: SessionHeatmapProps) {
                           </div>
                         </>
                       ) : (
-                        <div className="text-xs text-slate-500">—</div>
+                        <div className="text-xs text-muted">—</div>
                       )}
                     </div>
                   );
@@ -177,15 +177,15 @@ export function SessionHeatmap({ trades = [] }: SessionHeatmapProps) {
         <div className="flex items-center justify-center gap-6 mt-6 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-emerald-500/30 border border-emerald-500/50"></div>
-            <span className="text-slate-400">Profitable</span>
+            <span className="text-muted">Profitable</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-red-500/30 border border-red-500/50"></div>
-            <span className="text-slate-400">Loss</span>
+            <span className="text-muted">Loss</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-slate-800 border border-slate-700"></div>
-            <span className="text-slate-400">No trades</span>
+            <div className="w-4 h-4 rounded bg-transparent border border-border"></div>
+            <span className="text-muted">No trades</span>
           </div>
         </div>
       </CardContent>

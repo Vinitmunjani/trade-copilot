@@ -60,10 +60,10 @@ export function EquityCurve({ data = [] }: EquityCurveProps) {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "#0f172a",
-                border: "1px solid #334155",
+                backgroundColor: "hsl(var(--surface))",
+                border: "1px solid hsl(var(--border))",
                 borderRadius: "8px",
-                color: "#e2e8f0",
+                color: "hsl(var(--foreground))",
                 fontSize: "12px",
               }}
               formatter={(value: any) => [`$${value.toFixed(2)}`, "Cumulative P&L"]}

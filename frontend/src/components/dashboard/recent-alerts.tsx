@@ -53,12 +53,12 @@ export function RecentAlerts({ alerts }: RecentAlertsProps) {
 
   if (recentAlerts.length === 0) {
     return (
-      <Card className="border-white/5">
+      <Card className="h-full min-h-[300px] border-white/5">
         <CardHeader>
           <CardTitle className="text-base">Recent Alerts</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-muted">
+        <CardContent className="flex h-full items-center justify-center">
+          <div className="flex flex-col items-center justify-center text-muted">
             <AlertTriangle className="mb-2 h-8 w-8 text-foreground/30" />
             <p className="text-sm">No alerts</p>
             <p className="text-xs mt-1">You&apos;re trading clean!</p>
@@ -69,7 +69,7 @@ export function RecentAlerts({ alerts }: RecentAlertsProps) {
   }
 
   return (
-    <Card className="border-white/5">
+    <Card className="h-full min-h-[300px] border-white/5">
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           Recent Alerts

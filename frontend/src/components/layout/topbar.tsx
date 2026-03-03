@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Bell, User, LogOut, Settings, Wifi, WifiOff, Activity, AlertTriangle, CheckCircle, Info, X } from "lucide-react";
+import { Bell, User, LogOut, Settings, Wifi, WifiOff, AlertTriangle, CheckCircle, Info, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -49,17 +49,17 @@ export function Topbar({ isConnected }: TopbarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/5 bg-background/80 backdrop-blur-2xl">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 lg:px-8">
+    <header className="sticky top-0 z-40 border-b border-border bg-surface">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 lg:px-8">
         <div className="flex items-center gap-3">
           <MobileNav />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <div
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${
+            className={`inline-flex h-12 items-center gap-2 rounded-full border px-4 text-sm font-medium ${
               brokerConnected
-                ? "border-white/15 bg-accent/10 text-accent"
+                ? "border-border bg-surface-muted text-accent"
                 : "border-red-400/30 bg-red-500/10 text-red-300"
             }`}
           >
@@ -69,18 +69,18 @@ export function Topbar({ isConnected }: TopbarProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative border border-white/10">
-                <Bell className="h-4 w-4 text-foreground/70" />
+              <Button variant="ghost" size="icon" className="relative h-12 w-12 border border-border bg-surface-muted hover:bg-surface-contrast">
+                <Bell className="h-4 w-4 text-muted" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold leading-none text-white ring-2 ring-background">
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold leading-none text-white ring-2 ring-surface">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 border-white/10 bg-surface p-0">
+            <DropdownMenuContent align="end" className="w-80 border-border bg-surface p-0">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <p className="text-sm font-medium text-foreground">Notifications</p>
                 {unreadCount > 0 && (
                   <button
@@ -106,7 +106,7 @@ export function Topbar({ isConnected }: TopbarProps) {
                       key={alert.id}
                       onClick={() => acknowledgeAlert(alert.id)}
                       className={cn(
-                        "flex cursor-pointer gap-3 border-b border-white/5 px-4 py-3 last:border-0 transition-colors hover:bg-white/5",
+                        "flex cursor-pointer gap-3 border-b border-border px-4 py-3 last:border-0 transition-colors hover:bg-surface-muted/60",
                         !alert.acknowledged && "bg-accent/5"
                       )}
                     >
@@ -134,19 +134,23 @@ export function Topbar({ isConnected }: TopbarProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="sm" className="rounded-full border border-white/10 px-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-accent">
-                    {user?.name?.charAt(0).toUpperCase() || <Activity className="h-4 w-4" />}
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-12 rounded-full border border-border bg-surface-muted px-4 hover:bg-surface-contrast"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-contrast text-accent">
+                    {user?.name?.charAt(0).toUpperCase() || <User className="h-4 w-4" />}
                   </div>
-                  <div className="hidden text-left lg:block">
-                    <p className="text-xs text-muted">{currentPlan}</p>
-                    <p className="text-sm text-foreground">{user?.name || "Trader"}</p>
+                  <div className="hidden text-left lg:block leading-tight">
+                    <p className="text-xs text-muted leading-none">{currentPlan}</p>
+                    <p className="mt-1 text-sm text-foreground leading-none">{user?.name || "Trader"}</p>
                   </div>
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 border-white/10 bg-surface">
+            <DropdownMenuContent align="end" className="w-56 border-border bg-surface">
               <DropdownMenuLabel>
                 <div className="flex flex-col">
                   <span className="text-sm font-medium">{user?.name || "Trader"}</span>

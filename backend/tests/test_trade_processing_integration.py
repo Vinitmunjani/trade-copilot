@@ -35,3 +35,41 @@ async def test_process_trade_opened_integration():
     # AI score should be present (fallback or real OpenAI response)
     assert hasattr(trade, "ai_score")
     print("AI score:", trade.ai_score)
+
+
+@pytest.mark.asyncio
+async def test_process_trade_closed_computes_price_based_r_multiple():
+    """Regression: pnl_r should be price move / initial risk, not inflated by money heuristics."""
+    await init_db()
+
+    async with async_session_factory() as db:
+        user = User(email="integration-test-r-multiple@example.com", hashed_password="x")
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    trade_data = {
+        "external_id": "ext_integ_r_1",
+        "symbol": "XAUUSD",
+        "type": "BUY",
+        "entry_price": 5363.899,
+        "sl": 5358.536,
+        "tp": 5375.000,
+        "lot_size": 0.1,
+    }
+
+    opened = await trade_processor.process_trade_opened(str(user.id), trade_data)
+    assert opened is not None
+
+    closed = await trade_processor.process_trade_closed(
+        str(user.id),
+        {
+            "external_id": "ext_integ_r_1",
+            "exit_price": 5374.976,
+            "pnl": 110.77,
+        },
+    )
+
+    assert closed is not None
+    assert closed.pnl_r is not None
+    assert closed.pnl_r == pytest.approx(2.065, abs=0.001)

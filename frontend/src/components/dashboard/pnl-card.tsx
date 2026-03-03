@@ -16,23 +16,15 @@ export function PnlCard({ pnl, pnlR, label = "Today's P&L", tradesCount }: PnlCa
   const isPositive = pnl >= 0;
 
   return (
-    <Card className="relative overflow-hidden border-white/10 bg-gradient-to-br from-surface via-surface-muted to-surface-contrast">
-      <div className="pointer-events-none absolute inset-0 opacity-60">
-        <div
-          className={cn(
-            "absolute inset-y-0 right-0 w-1/3 blur-[90px]",
-            isPositive ? "bg-accent/40" : "bg-danger/25"
-          )}
-        />
-      </div>
-      <CardContent className="relative p-6">
+    <Card className="relative h-full min-h-[280px] overflow-hidden border-white/10 bg-surface">
+      <CardContent className="relative flex h-full flex-col justify-between p-6">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.35em] text-muted">{label}</p>
             <p
               className={cn(
                 "mt-4 text-4xl font-semibold tracking-tight",
-                isPositive ? "text-glow" : "text-danger"
+                isPositive ? "text-foreground" : "text-danger"
               )}
             >
               {formatCurrency(pnl)}
@@ -63,14 +55,6 @@ export function PnlCard({ pnl, pnlR, label = "Today's P&L", tradesCount }: PnlCa
           </div>
         </div>
       </CardContent>
-      <div
-        className={cn(
-          "absolute inset-x-6 bottom-4 h-px bg-gradient-to-r",
-          isPositive
-            ? "from-transparent via-accent/40 to-transparent"
-            : "from-transparent via-danger/40 to-transparent"
-        )}
-      />
     </Card>
   );
 }

@@ -37,12 +37,12 @@ export function Sidebar() {
     <div className={cn("hidden shrink-0 md:block", railWidth)}>
       <aside
         className={cn(
-          "fixed left-0 top-0 z-30 hidden h-screen flex-col border-r border-white/5 bg-white/5 px-3 py-4 backdrop-blur-2xl transition-all duration-500 md:flex",
+          "fixed left-0 top-0 z-30 hidden h-screen flex-col border-r border-border bg-surface px-3 py-4 transition-all duration-500 md:flex",
           railWidth
         )}
       >
-        <div className="flex items-center gap-3 rounded-3xl border border-white/5 bg-gradient-to-br from-surface to-surface-muted px-4 py-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/20 text-accent text-base font-semibold tracking-wide">
+        <div className="flex items-center gap-3 rounded-3xl border border-border bg-surface-muted px-4 py-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-contrast text-accent text-base font-semibold tracking-wide">
             AC
           </div>
           {!collapsed && (
@@ -63,14 +63,14 @@ export function Sidebar() {
                   "group relative flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium",
                   collapsed ? "justify-center" : "",
                   isActive
-                    ? "bg-white/10 text-foreground shadow-[0_0_30px_rgba(16,185,129,0.15)]"
-                    : "text-muted hover:text-foreground hover:bg-white/5"
+                    ? "border border-border bg-surface-muted text-foreground"
+                    : "text-muted hover:text-foreground hover:bg-surface-muted/70"
                 )}
                 title={collapsed ? item.label : undefined}
               >
                 <span
                   className={cn(
-                    "absolute left-1 top-1/2 h-10 w-[1.5px] -translate-y-1/2 rounded-full bg-accent opacity-0 transition-opacity duration-300",
+                    "absolute left-2 top-1/2 h-7 w-px -translate-y-1/2 rounded-full bg-accent/65 opacity-0 transition-opacity duration-300",
                     isActive && !collapsed ? "opacity-100" : ""
                   )}
                   aria-hidden="true"
@@ -80,7 +80,7 @@ export function Sidebar() {
                   <div className="flex w-full items-center justify-between">
                     <span>{item.label}</span>
                     {item.meta && (
-                      <span className="text-[10px] uppercase tracking-[0.3em] text-accent">{item.meta}</span>
+                      <span className="text-[10px] uppercase tracking-[0.3em] text-accent/90">{item.meta}</span>
                     )}
                   </div>
                 )}
@@ -92,7 +92,7 @@ export function Sidebar() {
         <div className="mt-4 space-y-3">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm text-foreground/80 transition hover:text-foreground"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface-muted py-3 text-sm text-muted transition hover:bg-surface-contrast hover:text-foreground"
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
             {!collapsed && <span>Collapse rail</span>}

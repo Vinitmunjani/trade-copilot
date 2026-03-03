@@ -14,12 +14,12 @@ interface OpenTradesProps {
 export function OpenTrades({ trades }: OpenTradesProps) {
   if (trades.length === 0) {
     return (
-      <Card className="border-white/5">
+      <Card className="h-full min-h-[300px] border-white/5">
         <CardHeader>
           <CardTitle className="text-base">Open Trades</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-muted">
+        <CardContent className="flex h-full items-center justify-center">
+          <div className="flex flex-col items-center justify-center text-muted">
             <p className="text-sm">No open trades</p>
             <p className="mt-1 text-xs">Trades will appear here in real-time</p>
           </div>
@@ -29,7 +29,7 @@ export function OpenTrades({ trades }: OpenTradesProps) {
   }
 
   return (
-    <Card className="border-white/5">
+      <Card className="h-full min-h-[300px] border-white/5">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           Open Trades

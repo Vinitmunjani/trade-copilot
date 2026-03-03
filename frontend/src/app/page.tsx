@@ -236,7 +236,7 @@ export default function HomePage() {
         {/* Hero / Product */}
         <section className="px-6 py-20" id="product">
           <div className="mx-auto max-w-6xl">
-            <div className="relative overflow-hidden rounded-[48px] border border-white/10 bg-surface/70 px-6 py-12 shadow-[0_40px_120px_rgba(0,0,0,0.65)] md:px-10 md:py-14">
+            <div className="relative px-6 py-12 md:px-10 md:py-14">
               <div className="relative z-10 grid gap-12 lg:grid-cols-[1.15fr_0.85fr]">
                 <div className="space-y-10">
               <div className="stat-pill w-fit border-accent/30 bg-accent/10 text-accent">
@@ -313,7 +313,7 @@ export default function HomePage() {
         </section>
 
         {/* Method */}
-        <section id="method" className="border-y border-white/5 bg-surface/60 py-16">
+        <section id="method" className="border-y border-white/5 bg-surface/60 py-20">
           <div className="mx-auto grid max-w-6xl gap-8 px-6 md:grid-cols-3">
             {featureHighlights.map(({ icon: Icon, title, copy }) => (
               <article key={title} className="card-surface p-6 transition-transform duration-300 hover:-translate-y-1">
@@ -328,8 +328,8 @@ export default function HomePage() {
         </section>
 
         {/* Features */}
-        <section id="features" className="px-6 py-24">
-          <div className="mx-auto max-w-6xl space-y-24">
+        <section id="features" className="px-6 py-20">
+          <div className="mx-auto max-w-6xl space-y-20">
 
             {/* Header */}
             <div className="text-center space-y-3">
@@ -568,8 +568,8 @@ export default function HomePage() {
         </section>
 
         {/* Pricing */}
-        <section id="pricing" className="px-6 pb-24 pt-4">
-          <div className="mx-auto max-w-5xl rounded-[40px] border border-white/10 bg-accent-soft/20 p-10 text-center backdrop-blur-2xl">
+        <section id="pricing" className="px-6 py-20">
+          <div className="mx-auto max-w-6xl rounded-[40px] border border-white/10 bg-accent-soft/20 p-10 text-center backdrop-blur-2xl">
             <p className="text-sm uppercase tracking-[0.4em] text-foreground/70">Investment</p>
             <h2 className="mt-4 text-4xl font-semibold text-balance">
               One losing trade costs more than a year of Tactician.

@@ -91,14 +91,14 @@ export function ChecklistBuilder() {
             .map((item, index) => (
               <div
                 key={item.id}
-                className="flex items-center gap-2 p-3 rounded-lg bg-slate-800/50 border border-slate-700 group"
+                className="flex items-center gap-2 p-3 rounded-[18px] bg-surface-muted border border-border group"
               >
                 {/* Drag handle */}
                 <div className="flex flex-col gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-4 w-4 p-0 text-slate-400 hover:text-slate-200"
+                    className="h-4 w-4 p-0 text-muted hover:text-foreground"
                     onClick={() => moveItem(item.id, "up")}
                     disabled={index === 0}
                   >
@@ -107,7 +107,7 @@ export function ChecklistBuilder() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-4 w-4 p-0 text-slate-400 hover:text-slate-200"
+                    className="h-4 w-4 p-0 text-muted hover:text-foreground"
                     onClick={() => moveItem(item.id, "down")}
                     disabled={index === rules.checklist.length - 1}
                   >
@@ -122,14 +122,14 @@ export function ChecklistBuilder() {
                     onChange={(e) =>
                       updateItem(item.id, { label: e.target.value })
                     }
-                    className="bg-transparent border-none p-0 text-sm text-slate-200 focus:ring-0"
+                    className="bg-transparent border-none p-0 text-sm text-foreground focus:ring-0"
                     placeholder="Checklist item..."
                   />
                 </div>
 
                 {/* Required toggle */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Required</span>
+                  <span className="text-xs text-muted">Required</span>
                   <Switch
                     checked={item.required}
                     onCheckedChange={(checked) =>
@@ -142,7 +142,7 @@ export function ChecklistBuilder() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-slate-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-8 w-8 text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => removeItem(item.id)}
                 >
                   <X className="h-4 w-4" />
@@ -170,7 +170,7 @@ export function ChecklistBuilder() {
         </div>
 
         {/* Instructions */}
-        <div className="text-xs text-slate-400 bg-slate-800/30 p-3 rounded-lg">
+        <div className="text-xs text-muted bg-surface-muted/60 border border-border p-3 rounded-[18px]">
           <p className="mb-1">
             ✓ <strong>Required items</strong> must be checked before opening trades
           </p>

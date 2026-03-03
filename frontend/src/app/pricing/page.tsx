@@ -112,6 +112,14 @@ const psychProof = [
   { stat: "97.2%", label: "discipline score for Tactician users" },
 ];
 
+const navLinks = [
+  { label: "Product", href: "/#product" },
+  { label: "Method", href: "/#method" },
+  { label: "Features", href: "/#features" },
+  { label: "Security", href: "/#security" },
+  { label: "Pricing", href: "/pricing" },
+];
+
 export default function PricingPage() {
   const router = useRouter();
   const [annual, setAnnual] = useState(false);
@@ -152,7 +160,7 @@ export default function PricingPage() {
     <div className="relative flex min-h-screen flex-col">
 
       {/* Navbar */}
-      <header className="sticky top-0 z-30 border-b border-white/5 bg-background/70 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
           <button
             className="flex items-center gap-3"
@@ -163,6 +171,22 @@ export default function PricingPage() {
             </div>
             <p className="text-sm font-medium tracking-[0.08em] text-muted">ampere.capital</p>
           </button>
+
+          <nav className="hidden items-center gap-6 text-sm text-muted md:flex">
+            {navLinks.map((link) => (
+              <button
+                key={link.href}
+                onClick={() => router.push(link.href)}
+                className={cn(
+                  "transition-colors hover:text-foreground",
+                  link.href === "/pricing" ? "text-foreground" : ""
+                )}
+              >
+                {link.label}
+              </button>
+            ))}
+          </nav>
+
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -232,7 +256,7 @@ export default function PricingPage() {
           </div>
 
           {/* Plan cards */}
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3 md:items-start">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3 md:items-stretch">
             {pricingPlans.map((plan) => {
               const isFeatured = plan.id === "tactician";
               const price = annual ? plan.annualPrice : plan.monthlyPrice;
@@ -242,11 +266,11 @@ export default function PricingPage() {
                 <div
                   key={plan.id}
                   className={cn(
-                    "relative flex flex-col rounded-[28px] border p-7 bg-gradient-to-b backdrop-blur-2xl transition-transform duration-300",
+                    "relative flex h-full flex-col rounded-[28px] border p-7 bg-gradient-to-b backdrop-blur-2xl transition-transform duration-300",
                     plan.bgClass,
                     plan.borderClass,
                     isFeatured
-                      ? "shadow-[0_0_80px_rgba(52,211,153,0.12)] md:-mt-4 md:pb-11 md:pt-9"
+                      ? "shadow-[0_0_80px_rgba(52,211,153,0.12)]"
                       : "hover:-translate-y-1"
                   )}
                 >
@@ -254,10 +278,10 @@ export default function PricingPage() {
                   {plan.badge && (
                     <div
                       className={cn(
-                        "absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full px-4 py-1 text-xs font-semibold tracking-wider uppercase whitespace-nowrap",
+                        "absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2 isolate overflow-hidden rounded-full px-4 py-1 text-xs font-semibold tracking-wider uppercase whitespace-nowrap",
                         isFeatured
                           ? "bg-accent text-background"
-                          : "bg-amber-400/15 text-amber-300 border border-amber-400/30"
+                          : "border border-amber-300/40 bg-background/55 text-amber-300 backdrop-blur-xl"
                       )}
                     >
                       {plan.badge}
@@ -307,12 +331,14 @@ export default function PricingPage() {
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
 
-                  {plan.callout && (
-                    <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted">
-                      <Sparkles className="h-3 w-3 text-accent" />
-                      {plan.callout}
-                    </div>
-                  )}
+                  <div className="mt-3 flex min-h-4 items-center justify-center gap-1.5 text-xs text-muted">
+                    {plan.callout && (
+                      <>
+                        <Sparkles className="h-3 w-3 text-accent" />
+                        {plan.callout}
+                      </>
+                    )}
+                  </div>
 
                   <div className="my-6 border-t border-white/5" />
 

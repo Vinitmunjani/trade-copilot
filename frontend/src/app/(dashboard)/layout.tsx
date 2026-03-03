@@ -26,8 +26,6 @@ export default function DashboardLayout({
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 opacity-80" aria-hidden="true">
-        <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-accent/25 blur-[140px]" />
-        <div className="absolute bottom-0 right-0 h-[460px] w-[460px] translate-x-1/2 translate-y-1/3 rounded-full bg-accent-soft/40 blur-[180px]" />
         <div className="absolute inset-0 bg-grid-lines opacity-[0.04]" />
       </div>
 

@@ -592,16 +592,15 @@ class TradeProcessingService:
                             pip_value = 10.0
                             row.pnl = (price_diff / pip_size) * pip_value * row.lot_size
 
-                    if row.sl and row.entry_price:
+                    if row.sl and row.entry_price and row.exit_price is not None:
+                        # R-multiple should be pure price movement over initial risk distance.
+                        # This avoids instrument contract-size heuristics causing 10x/100x errors
+                        # when broker pnl is in account currency.
                         risk = abs(row.entry_price - row.sl)
-                        if risk > 0 and row.lot_size > 0:
-                            if row.entry_price > 1000:
-                                risk_in_money = risk * row.lot_size
-                            elif row.entry_price > 20:
-                                risk_in_money = (risk / 0.01) * 10.0 * row.lot_size
-                            else:
-                                risk_in_money = (risk / 0.0001) * 10.0 * row.lot_size
-                            row.pnl_r = round(row.pnl / risk_in_money, 3) if risk_in_money != 0 else 0
+                        if risk > 0:
+                            move = (row.exit_price - row.entry_price) if row.direction == TradeDirection.BUY \
+                                else (row.entry_price - row.exit_price)
+                            row.pnl_r = round(move / risk, 3)
 
                             close_reason = _infer_close_reason(row, explicit_close_reason)
                             row.notes = _upsert_close_reason_note(row.notes, close_reason)

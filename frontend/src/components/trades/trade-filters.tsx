@@ -49,10 +49,10 @@ export function TradeFilters({ onFilterChange }: TradeFiltersProps) {
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-3 p-4 rounded-lg bg-slate-900 border border-slate-800">
+    <div className="flex flex-wrap items-end gap-3 rounded-[24px] border border-white/5 bg-surface p-5">
       {/* Date Range */}
       <div className="space-y-1">
-        <label className="text-xs text-slate-400">From</label>
+        <label className="text-xs text-muted">From</label>
         <Input
           type="date"
           value={dateFrom}
@@ -61,7 +61,7 @@ export function TradeFilters({ onFilterChange }: TradeFiltersProps) {
         />
       </div>
       <div className="space-y-1">
-        <label className="text-xs text-slate-400">To</label>
+        <label className="text-xs text-muted">To</label>
         <Input
           type="date"
           value={dateTo}
@@ -72,15 +72,17 @@ export function TradeFilters({ onFilterChange }: TradeFiltersProps) {
 
       {/* Symbol */}
       <div className="space-y-1">
-        <label className="text-xs text-slate-400">Symbol</label>
+        <label className="text-xs text-muted">Symbol</label>
         <Select value={symbol} onValueChange={setSymbol}>
-          <SelectTrigger className="w-32">
+          <SelectTrigger className="w-32 border-border bg-surface-muted text-foreground focus:ring-accent">
             <SelectValue placeholder="All Symbols" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Symbols</SelectItem>
+          <SelectContent className="border-border bg-surface text-foreground">
+            <SelectItem className="focus:bg-surface-muted focus:text-foreground" value="all">
+              All Symbols
+            </SelectItem>
             {SYMBOLS.map((s) => (
-              <SelectItem key={s} value={s}>
+              <SelectItem className="focus:bg-surface-muted focus:text-foreground" key={s} value={s}>
                 {s}
               </SelectItem>
             ))}
@@ -90,22 +92,28 @@ export function TradeFilters({ onFilterChange }: TradeFiltersProps) {
 
       {/* Direction */}
       <div className="space-y-1">
-        <label className="text-xs text-slate-400">Direction</label>
+        <label className="text-xs text-muted">Direction</label>
         <Select value={direction} onValueChange={setDirection}>
-          <SelectTrigger className="w-28">
+          <SelectTrigger className="w-28 border-border bg-surface-muted text-foreground focus:ring-accent">
             <SelectValue placeholder="All" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="BUY">Buy</SelectItem>
-            <SelectItem value="SELL">Sell</SelectItem>
+          <SelectContent className="border-border bg-surface text-foreground">
+            <SelectItem className="focus:bg-surface-muted focus:text-foreground" value="all">
+              All
+            </SelectItem>
+            <SelectItem className="focus:bg-surface-muted focus:text-foreground" value="BUY">
+              Buy
+            </SelectItem>
+            <SelectItem className="focus:bg-surface-muted focus:text-foreground" value="SELL">
+              Sell
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {/* Score Range */}
       <div className="space-y-1">
-        <label className="text-xs text-slate-400">Score Min</label>
+        <label className="text-xs text-muted">Score Min</label>
         <Input
           type="number"
           min={1}
@@ -117,7 +125,7 @@ export function TradeFilters({ onFilterChange }: TradeFiltersProps) {
         />
       </div>
       <div className="space-y-1">
-        <label className="text-xs text-slate-400">Score Max</label>
+        <label className="text-xs text-muted">Score Max</label>
         <Input
           type="number"
           min={1}

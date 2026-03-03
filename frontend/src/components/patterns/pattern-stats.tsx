@@ -84,7 +84,7 @@ export function PatternStats({ patterns = [] }: PatternStatsProps) {
                     <h3 className="font-semibold text-slate-200 text-sm leading-tight">
                       {stat.pattern}
                     </h3>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted">
                       {stat.frequency} occurrence{stat.frequency !== 1 ? 's' : ''}
                     </p>
                   </div>
@@ -94,8 +94,8 @@ export function PatternStats({ patterns = [] }: PatternStatsProps) {
                 </div>
               </div>
 
-              <p className="text-xs text-slate-400 mb-2">{stat.description}</p>
-              <p className="text-xs italic text-slate-300">{stat.recommendation}</p>
+              <p className="text-xs text-foreground/80 mb-2">{stat.description}</p>
+              <p className="text-xs italic text-muted">{stat.recommendation}</p>
             </CardContent>
           </Card>
         );

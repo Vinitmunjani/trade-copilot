@@ -107,13 +107,13 @@ export default function TradesPage() {
 
       {/* Analytics Ready Alert */}
       {analyticsReadiness && analyticsReadiness.has_enough_history && trades.length > 0 && (
-        <Card className="border-emerald-900/50 bg-emerald-900/10">
+        <Card className="border-border bg-surface-muted">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-emerald-500 mt-0.5 flex-shrink-0" />
+              <AlertCircle className="h-5 w-5 text-accent mt-0.5 flex-shrink-0" />
               <div>
-                <h3 className="font-semibold text-emerald-300">✓ Analytics Available</h3>
-                <p className="text-sm text-emerald-200 mt-1">
+                <h3 className="font-semibold text-foreground">✓ Analytics Available</h3>
+                <p className="text-sm text-muted mt-1">
                   You have {analyticsReadiness.total_closed_trades} closed trades. Analytics is now available with full insights and pattern analysis.
                 </p>
               </div>
@@ -124,12 +124,18 @@ export default function TradesPage() {
 
       {/* Tabs: History / Journal */}
       <Tabs defaultValue="history" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="history" className="flex items-center gap-2">
+        <TabsList className="h-11 rounded-[24px] border border-white/5 bg-surface p-1 text-muted">
+          <TabsTrigger
+            value="history"
+            className="flex h-9 items-center gap-2 rounded-[16px] px-5 data-[state=active]:bg-surface-muted data-[state=active]:text-foreground data-[state=active]:shadow-none"
+          >
             <History className="h-4 w-4" />
             History
           </TabsTrigger>
-          <TabsTrigger value="journal" className="flex items-center gap-2">
+          <TabsTrigger
+            value="journal"
+            className="flex h-9 items-center gap-2 rounded-[16px] px-5 data-[state=active]:bg-surface-muted data-[state=active]:text-foreground data-[state=active]:shadow-none"
+          >
             <BookOpen className="h-4 w-4" />
             Journal
           </TabsTrigger>

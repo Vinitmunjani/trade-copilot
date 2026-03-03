@@ -49,7 +49,7 @@ export function RulesEditor() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Risk Management */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-200">Risk Management</h3>
+            <h3 className="text-sm font-semibold text-foreground">Risk Management</h3>
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -70,7 +70,7 @@ export function RulesEditor() {
                     }
                     className="pr-8"
                   />
-                  <span className="absolute right-3 top-2 text-sm text-slate-400">%</span>
+                  <span className="absolute right-3 top-2 text-sm text-muted">%</span>
                 </div>
               </div>
 
@@ -129,7 +129,7 @@ export function RulesEditor() {
                     }
                     className="pr-8"
                   />
-                  <span className="absolute right-3 top-2 text-sm text-slate-400">%</span>
+                  <span className="absolute right-3 top-2 text-sm text-muted">%</span>
                 </div>
               </div>
             </div>
@@ -137,17 +137,17 @@ export function RulesEditor() {
 
           {/* Session Restrictions */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-200">Session Restrictions</h3>
-            <p className="text-xs text-slate-400">
+            <h3 className="text-sm font-semibold text-foreground">Session Restrictions</h3>
+            <p className="text-xs text-muted">
               Block trading during specific sessions to maintain discipline
             </p>
             
             <div className="space-y-3">
               {SESSIONS.map((session) => (
-                <div key={session.value} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+                <div key={session.value} className="flex items-center justify-between p-3 rounded-[18px] bg-surface-muted border border-border">
                   <div>
-                    <p className="text-sm font-medium text-slate-200">{session.label}</p>
-                    <p className="text-xs text-slate-400">{session.hours}</p>
+                    <p className="text-sm font-medium text-foreground">{session.label}</p>
+                    <p className="text-xs text-muted">{session.hours}</p>
                   </div>
                   <Switch
                     checked={localRules.blocked_sessions.includes(session.value as TradingSession)}
@@ -160,7 +160,7 @@ export function RulesEditor() {
 
           {/* Save Button */}
           <div className="flex justify-end pt-4">
-            <Button type="submit" disabled={isSaving}>
+            <Button type="submit" disabled={isSaving} className="shadow-none hover:shadow-none">
               {isSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

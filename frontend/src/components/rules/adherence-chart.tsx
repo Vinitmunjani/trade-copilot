@@ -142,16 +142,16 @@ export function AdherenceChart() {
                   <Bar
                     dataKey="winRate"
                     name="Win Rate"
-                    fill="hsl(var(--accent))"
+                    fill="hsl(var(--accent-soft))"
                     radius={[2, 2, 0, 0]}
-                    opacity={0.85}
+                    opacity={0.75}
                   />
                   <Bar
                     dataKey="adherence"
                     name="Rule Adherence"
-                    fill="hsl(var(--accent-soft))"
+                    fill="hsl(var(--surface-contrast))"
                     radius={[2, 2, 0, 0]}
-                    opacity={0.6}
+                    opacity={0.8}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -159,11 +159,11 @@ export function AdherenceChart() {
 
             {/* Summary */}
             <div className="mt-4 grid grid-cols-2 gap-4 text-center">
-              <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
+              <div className="p-3 rounded-[18px] bg-surface-muted border border-border">
                 <p className="text-2xl font-bold text-accent">{avgWinRate.toFixed(1)}%</p>
                 <p className="text-xs text-muted">Avg Win Rate</p>
               </div>
-              <div className="p-3 rounded-lg bg-accent/5 border border-border">
+              <div className="p-3 rounded-[18px] bg-surface-muted border border-border">
                 <p className="text-2xl font-bold text-foreground">{avgAdherence.toFixed(1)}%</p>
                 <p className="text-xs text-muted">Avg Rule Adherence</p>
               </div>

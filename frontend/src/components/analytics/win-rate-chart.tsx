@@ -195,10 +195,29 @@ export function WinRateChart({ data = [], trades = [] }: WinRateChartProps) {
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="symbol">By Symbol</TabsTrigger>
-            {computedData.session.length > 0 && <TabsTrigger value="session">By Session</TabsTrigger>}
-            {computedData.day.length > 0 && <TabsTrigger value="day">By Day</TabsTrigger>}
+          <TabsList className="mb-4 h-auto rounded-[18px] border border-white/10 bg-surface-muted p-1.5 text-muted">
+            <TabsTrigger
+              value="symbol"
+              className="rounded-xl px-4 py-2 text-base text-muted data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              By Symbol
+            </TabsTrigger>
+            {computedData.session.length > 0 && (
+              <TabsTrigger
+                value="session"
+                className="rounded-xl px-4 py-2 text-base text-muted data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                By Session
+              </TabsTrigger>
+            )}
+            {computedData.day.length > 0 && (
+              <TabsTrigger
+                value="day"
+                className="rounded-xl px-4 py-2 text-base text-muted data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                By Day
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value={activeTab}>
