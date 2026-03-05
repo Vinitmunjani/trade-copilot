@@ -36,7 +36,7 @@ const Toast = React.forwardRef<
       "data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none",
       "data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-bottom-full",
       variant === "default" && "border-border bg-surface text-foreground",
-      variant === "success" && "border-accent/30 bg-surface text-foreground shadow-[0_0_20px_rgba(16,185,129,0.12)]",
+      variant === "success" && "border-accent/30 bg-surface text-foreground shadow-[0_0_20px_hsl(var(--accent)/0.12)]",
       variant === "destructive" && "border-danger/30 bg-surface text-danger",
       variant === "info" && "border-border bg-surface-muted text-foreground",
       className

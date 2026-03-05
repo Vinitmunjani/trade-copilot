@@ -53,10 +53,13 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Database initialization failed: {e}")
 
     # Initialize Redis
+    redis = None
     try:
         redis = await init_redis()
         if redis:
             logger.info("✅ Redis connected")
+            await ws_manager.start_redis_bridge(redis)
+            logger.info("✅ WebSocket Redis bridge started")
         else:
             logger.warning("⚠️ Redis unavailable — running without cache")
     except Exception as e:
@@ -92,6 +95,7 @@ async def lifespan(app: FastAPI):
             pass
 
     await metaapi_service.shutdown()
+    await ws_manager.stop_redis_bridge()
     await close_redis()
     await close_db()
     logger.info("👋 Shutdown complete")

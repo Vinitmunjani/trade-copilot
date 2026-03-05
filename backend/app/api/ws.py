@@ -6,7 +6,9 @@ and broadcasts trade events, AI scores, and behavioral alerts.
 
 import json
 import logging
-from typing import Dict, List,  Any
+import asyncio
+import uuid
+from typing import Dict, List,  Any, Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
@@ -25,6 +27,78 @@ class WebSocketManager:
 
     def __init__(self):
         self._connections: Dict[str, List[WebSocket]] = {}
+        self._instance_id = str(uuid.uuid4())
+        self._redis_client = None
+        self._redis_bridge_task: Optional[asyncio.Task] = None
+
+    async def start_redis_bridge(self, redis_client: Any) -> None:
+        """Start Redis pub/sub bridge for cross-instance fanout."""
+        if not redis_client or self._redis_bridge_task:
+            return
+        self._redis_client = redis_client
+        self._redis_bridge_task = asyncio.create_task(self._run_redis_bridge())
+        logger.info(f"Redis WS bridge started (instance={self._instance_id})")
+
+    async def stop_redis_bridge(self) -> None:
+        """Stop Redis pub/sub bridge task."""
+        if self._redis_bridge_task:
+            self._redis_bridge_task.cancel()
+            try:
+                await self._redis_bridge_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.exception("Redis WS bridge stopped with error")
+            self._redis_bridge_task = None
+            logger.info("Redis WS bridge stopped")
+
+    async def _run_redis_bridge(self) -> None:
+        """Listen to Redis pub/sub and forward messages to local sockets."""
+        if not self._redis_client:
+            return
+
+        pubsub = self._redis_client.pubsub()
+        try:
+            await pubsub.psubscribe("ws:user:*")
+            while True:
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if not message:
+                    await asyncio.sleep(0.01)
+                    continue
+
+                if message.get("type") not in ("pmessage", "message"):
+                    continue
+
+                channel = message.get("channel", "")
+                if not isinstance(channel, str) or not channel.startswith("ws:user:"):
+                    continue
+
+                user_id = channel.replace("ws:user:", "", 1)
+                payload_raw = message.get("data")
+                if payload_raw is None:
+                    continue
+
+                try:
+                    payload = json.loads(payload_raw)
+                except Exception:
+                    continue
+
+                source_instance = payload.get("_source_instance") if isinstance(payload, dict) else None
+                if source_instance == self._instance_id:
+                    continue
+
+                if isinstance(payload, dict):
+                    payload.pop("_source_instance", None)
+                    await self._broadcast_local_to_user(user_id, payload)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Redis WS bridge listener error")
+        finally:
+            try:
+                await pubsub.close()
+            except Exception:
+                pass
 
     async def connect(self, user_id: str, websocket: WebSocket) -> None:
         """Accept and register a new WebSocket connection.
@@ -61,6 +135,19 @@ class WebSocketManager:
             user_id: Target user UUID string.
             data: Dict to serialize as JSON and send.
         """
+        await self._broadcast_local_to_user(user_id, data)
+
+        if self._redis_client:
+            try:
+                payload = dict(data)
+                payload["_source_instance"] = self._instance_id
+                message = json.dumps(payload, default=str)
+                await self._redis_client.publish(f"ws:user:{user_id}", message)
+            except Exception:
+                logger.exception(f"Failed to publish WS message to Redis for user {user_id}")
+
+    async def _broadcast_local_to_user(self, user_id: str, data: dict) -> None:
+        """Send a message only to local process WebSocket connections."""
         if user_id not in self._connections:
             return
 

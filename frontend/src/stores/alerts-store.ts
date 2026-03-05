@@ -43,9 +43,9 @@ export const useAlertsStore = create<AlertsState>((set) => ({
   },
 
   clearAll: () => {
-    set((s) => ({
-      alerts: s.alerts.map((a) => ({ ...a, acknowledged: true })),
+    set({
+      alerts: [],
       unreadCount: 0,
-    }));
+    });
   },
 }));

@@ -200,7 +200,7 @@ export default function ReportsPage() {
                     {/* Strengths & Weaknesses */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <h4 className="font-semibold text-emerald-400 mb-3">💪 Strengths</h4>
+                        <h4 className="font-semibold text-emerald-400 mb-3">Strengths</h4>
                         <ul className="space-y-2">
                           {report.strengths.map((s, i) => (
                             <li key={i} className="text-sm text-muted flex items-start gap-2">
@@ -211,7 +211,7 @@ export default function ReportsPage() {
                         </ul>
                       </div>
                       <div>
-                        <h4 className="font-semibold text-amber-400 mb-3">🎯 Areas for Improvement</h4>
+                        <h4 className="font-semibold text-amber-400 mb-3">Areas for Improvement</h4>
                         <ul className="space-y-2">
                           {report.weaknesses.map((w, i) => (
                             <li key={i} className="text-sm text-muted flex items-start gap-2">

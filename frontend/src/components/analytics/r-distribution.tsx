@@ -58,7 +58,7 @@ export function RDistribution({ data = [] }: RDistributionProps) {
               {data.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill={entry.min_r >= 0 ? "#10b981" : "#ef4444"}
+                  fill={entry.min_r >= 0 ? "#2f9fc1" : "#ef4444"}
                   fillOpacity={0.8}
                 />
               ))}

@@ -222,7 +222,7 @@ export default function HomePage() {
             </Button>
             <Button
               size="lg"
-              className="hidden text-sm font-semibold shadow-glow md:inline-flex"
+              className="hidden text-sm font-semibold md:inline-flex"
               onClick={() => router.push("/register")}
             >
               Launch Terminal
@@ -256,7 +256,7 @@ export default function HomePage() {
               <div className="flex flex-wrap gap-3">
                 <Button
                   size="lg"
-                  className="rounded-full px-8 text-base font-semibold shadow-glow"
+                  className="rounded-full px-8 text-base font-semibold"
                   onClick={() => router.push("/register")}
                 >
                   Start Free Trial
@@ -580,7 +580,7 @@ export default function HomePage() {
             <div className="mt-8 flex flex-wrap justify-center gap-4">
               <Button
                 size="lg"
-                className="rounded-full px-10 text-base font-semibold shadow-glow"
+                className="rounded-full px-10 text-base font-semibold"
                 onClick={() => router.push("/pricing")}
               >
                 See Plans &amp; Pricing

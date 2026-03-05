@@ -241,7 +241,7 @@ export function WinRateChart({ data = [], trades = [] }: WinRateChartProps) {
                   <Bar
                     dataKey="winRate"
                     name="Win Rate"
-                    fill="#10b981"
+                    fill="#2f9fc1"
                     radius={[2, 2, 0, 0]}
                   />
                   <Bar

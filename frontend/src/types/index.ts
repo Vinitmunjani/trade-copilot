@@ -187,11 +187,20 @@ export interface WSReadinessUpdate {
   score: number;
 }
 
+export interface WSReviewStreamUpdate {
+  type: "ai_review_stream";
+  trade_id: string;
+  status: "started" | "chunk" | "completed" | "failed";
+  chunk?: string;
+  ai_review?: Record<string, any> | null;
+}
+
 export type WSEvent =
   | WSTradeUpdate
   | WSScoreUpdate
   | WSAlertUpdate
-  | WSReadinessUpdate;
+  | WSReadinessUpdate
+  | WSReviewStreamUpdate;
 
 export interface AuthResponse {
   access_token: string;

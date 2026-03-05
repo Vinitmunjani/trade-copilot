@@ -4,16 +4,18 @@
 
 @layer base {
   :root {
-    --background: 166 68% 2%;
-    --foreground: 156 14% 96%;
-    --surface: 170 36% 5%;
-    --surface-muted: 172 28% 8%;
-    --surface-contrast: 170 32% 15%;
-    --border: 169 30% 22%;
-    --muted: 160 10% 60%;
-    --accent: 150 78% 46%;
-    --accent-soft: 153 75% 32%;
-    --accent-glow: 150 95% 62%;
+    --background: 222 45% 4%;
+    --foreground: 210 20% 96%;
+    --surface: 222 24% 8%;
+    --surface-muted: 222 20% 11%;
+    --surface-contrast: 222 18% 17%;
+    --border: 220 16% 26%;
+    --muted: 215 12% 62%;
+    --accent: 197.72deg 60.55% 47.18%;
+    --accent-soft: 197.72deg 60.55% 36%;
+    --accent-glow: 197.72deg 72% 60%;
+    --warning: 32 95% 58%;
+    --warning-soft: 30 92% 48%;
     --success: 148 70% 40%;
     --danger: 0 84% 60%;
     --radius-lg: 1rem;
@@ -95,10 +97,10 @@
     height: 50vh;
     transform: translate(-50%, -50%);
     background:
-      radial-gradient(circle at 12% 18%, rgba(16, 185, 129, 0.55), transparent 60%),
-      radial-gradient(circle at 78% 22%, rgba(50, 255, 194, 0.4), transparent 100%),
-      radial-gradient(circle at 60% 78%, rgba(0, 168, 120, 0.42), transparent 100%),
-      radial-gradient(circle at 35% 70%, rgba(5, 150, 105, 0.45), transparent 100%),
+      radial-gradient(circle at 12% 18%, hsl(var(--accent) / 0.55), transparent 60%),
+      radial-gradient(circle at 78% 22%, hsl(var(--accent) / 0.4), transparent 100%),
+      radial-gradient(circle at 60% 78%, hsl(var(--accent-soft) / 0.42), transparent 100%),
+      radial-gradient(circle at 35% 70%, hsl(var(--accent-soft) / 0.45), transparent 100%),
       linear-gradient(140deg, rgba(0, 31, 23, 0.95), rgba(0, 10, 6, 0.98));
     background-repeat: no-repeat;
     background-size: 180% 180%, 180% 180%, 160% 160%, 160% 160%, 100% 100%;
@@ -134,21 +136,21 @@
       radial-gradient(
         circle at 50% 50%,
         transparent 0 54%,
-        hsl(150 90% 50% / 0.05) 55%,
-        hsl(150 90% 55% / 0.25) 58%,
-        hsl(150 95% 62% / 0.55) 60%,
-        hsl(150 90% 55% / 0.25) 62%,
-        hsl(150 90% 50% / 0.05) 64%,
+        hsl(var(--accent) / 0.05) 55%,
+        hsl(var(--accent) / 0.25) 58%,
+        hsl(var(--accent-glow) / 0.55) 60%,
+        hsl(var(--accent) / 0.25) 62%,
+        hsl(var(--accent) / 0.05) 64%,
         transparent 68%
       ),
       radial-gradient(
         circle at 50% 50%,a 
         transparent 0 100%,
-        hsl(150 80% 45% / 0.04) 67%,
-        hsl(150 80% 48% / 0.18) 69%,
-        hsl(150 85% 52% / 0.4) 71%,
-        hsl(150 80% 48% / 0.18) 73%,
-        hsl(150 80% 45% / 0.04) 75%,
+        hsl(var(--accent-soft) / 0.04) 67%,
+        hsl(var(--accent-soft) / 0.18) 69%,
+        hsl(var(--accent) / 0.4) 71%,
+        hsl(var(--accent-soft) / 0.18) 73%,
+        hsl(var(--accent-soft) / 0.04) 75%,
         transparent 78%
       );
     opacity: 1;
@@ -166,9 +168,9 @@
       radial-gradient(
         circle at 50% 50%,
         transparent 0 50%,
-        hsl(150 95% 62% / 0.08) 54%,
-        hsl(150 95% 62% / 0.22) 59%,
-        hsl(150 95% 62% / 0.08) 64%,
+        hsl(var(--accent-glow) / 0.08) 54%,
+        hsl(var(--accent-glow) / 0.22) 59%,
+        hsl(var(--accent-glow) / 0.08) 64%,
         transparent 70%
       );
     filter: blur(12px);
@@ -186,11 +188,11 @@
       radial-gradient(
         circle at 50% 50%,
         transparent 0 42%,
-        hsl(150 90% 55% / 0.03) 43%,
-        hsl(150 90% 55% / 0.14) 45%,
-        hsl(150 90% 58% / 0.28) 46.5%,
-        hsl(150 90% 55% / 0.14) 48%,
-        hsl(150 90% 55% / 0.03) 49%,
+        hsl(var(--accent) / 0.03) 43%,
+        hsl(var(--accent) / 0.14) 45%,
+        hsl(var(--accent-glow) / 0.28) 46.5%,
+        hsl(var(--accent) / 0.14) 48%,
+        hsl(var(--accent) / 0.03) 49%,
         transparent 52%
       );
     filter: blur(2px);
@@ -226,10 +228,10 @@
     position: absolute;
     inset: -35% -10%;
     background:
-      radial-gradient(circle at 20% 20%, rgba(16, 185, 129, 0.6), transparent 55%),
-      radial-gradient(circle at 75% 25%, rgba(5, 150, 105, 0.45), transparent 60%),
-      radial-gradient(circle at 35% 80%, rgba(34, 197, 94, 0.45), transparent 60%),
-      radial-gradient(circle at 80% 80%, rgba(13, 148, 136, 0.4), transparent 55%);
+      radial-gradient(circle at 20% 20%, hsl(var(--accent) / 0.6), transparent 55%),
+      radial-gradient(circle at 75% 25%, hsl(var(--accent-soft) / 0.45), transparent 60%),
+      radial-gradient(circle at 35% 80%, hsl(var(--accent-glow) / 0.45), transparent 60%),
+      radial-gradient(circle at 80% 80%, hsl(var(--accent-soft) / 0.4), transparent 55%);
     filter: blur(40px);
     opacity: 0.85;
     transform: translate3d(0, 0, 0);
@@ -279,7 +281,7 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(120deg, rgba(16, 185, 129, 0.6), transparent 45%, rgba(16, 185, 129, 0.35));
+    background: linear-gradient(120deg, hsl(var(--accent) / 0.6), transparent 45%, hsl(var(--accent) / 0.35));
     -webkit-mask:
       linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);
@@ -293,7 +295,74 @@
   }
 
   .text-glow {
-    text-shadow: 0 0 20px rgba(16, 185, 129, 0.45);
+    text-shadow: 0 0 20px hsl(var(--accent) / 0.45);
+  }
+
+  [class*="text-emerald-"],
+  [class*="text-teal-"] {
+    color: hsl(var(--accent)) !important;
+  }
+
+  [class*="text-amber-"],
+  [class*="text-yellow-"] {
+    color: hsl(var(--warning)) !important;
+  }
+
+  [class*="bg-emerald-"],
+  [class*="bg-teal-"] {
+    background-color: hsl(var(--accent) / 0.12) !important;
+  }
+
+  [class*="bg-amber-"],
+  [class*="bg-yellow-"] {
+    background-color: hsl(var(--warning-soft) / 0.14) !important;
+  }
+
+  [class*="border-emerald-"],
+  [class*="border-teal-"] {
+    border-color: hsl(var(--accent) / 0.35) !important;
+  }
+
+  [class*="border-amber-"],
+  [class*="border-yellow-"] {
+    border-color: hsl(var(--warning) / 0.35) !important;
+  }
+
+  [class*="border-t-emerald-"] {
+    border-top-color: hsl(var(--accent)) !important;
+  }
+
+  [class*="ring-emerald-"] {
+    --tw-ring-color: hsl(var(--accent) / 0.45) !important;
+  }
+
+  [class*="ring-amber-"],
+  [class*="ring-yellow-"] {
+    --tw-ring-color: hsl(var(--warning) / 0.45) !important;
+  }
+
+  [class*="from-emerald-"],
+  [class*="from-teal-"] {
+    --tw-gradient-from: hsl(var(--accent-soft) / 0.2) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: hsl(var(--accent-soft) / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+
+  [class*="from-amber-"],
+  [class*="from-yellow-"] {
+    --tw-gradient-from: hsl(var(--warning-soft) / 0.2) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: hsl(var(--warning-soft) / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+
+  [class*="to-emerald-"],
+  [class*="to-teal-"] {
+    --tw-gradient-to: hsl(var(--accent-soft) / 0.2) var(--tw-gradient-to-position) !important;
+  }
+
+  [class*="to-amber-"],
+  [class*="to-yellow-"] {
+    --tw-gradient-to: hsl(var(--warning-soft) / 0.2) var(--tw-gradient-to-position) !important;
   }
 
   .animate-pulse-fast {
@@ -369,7 +438,7 @@
 }
 
 .recharts-tooltip-cursor {
-  fill: rgba(15, 118, 110, 0.35);
+  fill: hsl(var(--accent) / 0.35);
 }
 
 .radix-select-content {

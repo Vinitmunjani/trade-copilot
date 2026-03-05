@@ -1,11 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { RulesEditor } from "@/components/rules/rules-editor";
 import { ChecklistBuilder } from "@/components/rules/checklist-builder";
 import { AdherenceChart } from "@/components/rules/adherence-chart";
+import { useSettingsStore } from "@/stores/settings-store";
 
 export default function RulesPage() {
+  const { fetchRules } = useSettingsStore();
+
+  useEffect(() => {
+    fetchRules();
+  }, [fetchRules]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -28,7 +35,7 @@ export default function RulesPage() {
       {/* Tips */}
       <div className="bg-gradient-to-r from-emerald-900/20 to-emerald-800/20 border border-emerald-500/20 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-emerald-400 mb-3 flex items-center gap-2">
-          💡 Rule Management Tips
+          Rule Management Tips
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-300">
           <div>

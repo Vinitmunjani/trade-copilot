@@ -4,8 +4,11 @@ from typing import Optional, List, Dict, Union, Any
 import uuid
 import logging
 from datetime import datetime, timedelta, timezone
+import asyncio
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +27,78 @@ router = APIRouter(prefix="/analysis", tags=["Analysis"])
 
 # Minimum trades required for meaningful analytics
 MIN_TRADES_FOR_ANALYTICS = 10
+
+
+@router.get("/trade/{trade_id}/review/stream")
+async def stream_trade_review(
+    trade_id: uuid.UUID,
+    timeout_seconds: int = Query(30, ge=5, le=120),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """SSE stream for post-trade review availability.
+
+    Emits `pending` heartbeats until review is ready, then emits `completed` with
+    the final ai_review payload.
+    """
+    result = await db.execute(
+        select(Trade).where(
+            and_(
+                Trade.id == trade_id,
+                Trade.user_id == current_user.id,
+            )
+        )
+    )
+    trade = result.scalar_one_or_none()
+    if not trade:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trade not found")
+
+    async def event_generator():
+        start_ts = datetime.now(timezone.utc)
+        while True:
+            elapsed = (datetime.now(timezone.utc) - start_ts).total_seconds()
+
+            refreshed = await db.execute(
+                select(Trade).where(
+                    and_(
+                        Trade.id == trade_id,
+                        Trade.user_id == current_user.id,
+                    )
+                )
+            )
+            current = refreshed.scalar_one_or_none()
+            if not current:
+                payload = {"status": "not_found", "trade_id": str(trade_id)}
+                yield f"event: error\ndata: {json.dumps(payload)}\n\n"
+                return
+
+            if current.ai_review:
+                payload = {
+                    "status": "completed",
+                    "trade_id": str(trade_id),
+                    "ai_review": current.ai_review,
+                }
+                yield f"event: completed\ndata: {json.dumps(payload)}\n\n"
+                return
+
+            if elapsed >= timeout_seconds:
+                payload = {"status": "timeout", "trade_id": str(trade_id)}
+                yield f"event: timeout\ndata: {json.dumps(payload)}\n\n"
+                return
+
+            payload = {"status": "pending", "trade_id": str(trade_id)}
+            yield f"event: pending\ndata: {json.dumps(payload)}\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/readiness")

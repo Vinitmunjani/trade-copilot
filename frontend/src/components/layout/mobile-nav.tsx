@@ -16,6 +16,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AmpereLogo } from "@/components/ui/ampere-logo";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -46,8 +47,8 @@ export function MobileNav() {
           <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
           <div className="fixed left-0 top-0 bottom-0 z-50 flex w-72 flex-col border-r border-border bg-surface">
             <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-surface-contrast text-accent text-sm font-semibold tracking-wide">
-                AC
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-surface-contrast">
+                <AmpereLogo className="h-[22px] w-[22px]" />
               </div>
               <div>
                 <p className="text-xs font-medium tracking-[0.08em] text-muted">ampere.capital</p>

@@ -3,6 +3,15 @@ import { persist } from "zustand/middleware";
 import api from "@/lib/api";
 import type { TradingRules, ChecklistItem, TradingAccount } from "@/types";
 
+interface BackendRulesResponse {
+  max_risk_percent: number;
+  min_risk_reward: number;
+  max_trades_per_day: number;
+  max_daily_loss_percent: number;
+  blocked_sessions: string[];
+  custom_checklist: string[];
+}
+
 interface ConnectBrokerParams {
   login: string;
   password: string;
@@ -51,6 +60,50 @@ const defaultRules: TradingRules = {
   ],
 };
 
+function mapChecklistFromBackend(
+  labels: string[] = [],
+  existingChecklist: ChecklistItem[] = []
+): ChecklistItem[] {
+  return labels.map((label, index) => {
+    const existing = existingChecklist.find((item) => item.label === label);
+    const positional = existingChecklist[index];
+    return {
+      id: existing?.id || positional?.id || `c${Date.now()}-${index}`,
+      label,
+      required: existing?.required ?? positional?.required ?? true,
+      order: index + 1,
+    };
+  });
+}
+
+function mapRulesFromBackend(
+  data: BackendRulesResponse,
+  existingChecklist: ChecklistItem[] = []
+): TradingRules {
+  return {
+    max_risk_percent: data.max_risk_percent,
+    min_risk_reward: data.min_risk_reward,
+    max_trades_per_day: data.max_trades_per_day,
+    max_loss_per_day: data.max_daily_loss_percent,
+    blocked_sessions: (data.blocked_sessions || []) as TradingRules["blocked_sessions"],
+    checklist: mapChecklistFromBackend(data.custom_checklist || [], existingChecklist),
+  };
+}
+
+function mapRulesToBackend(rules: TradingRules) {
+  return {
+    max_risk_percent: rules.max_risk_percent,
+    min_risk_reward: rules.min_risk_reward,
+    max_trades_per_day: rules.max_trades_per_day,
+    max_daily_loss_percent: rules.max_loss_per_day,
+    blocked_sessions: rules.blocked_sessions,
+    custom_checklist: (rules.checklist || [])
+      .sort((a, b) => a.order - b.order)
+      .map((item) => item.label)
+      .filter((label) => label && label.trim().length > 0),
+  };
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
@@ -62,18 +115,29 @@ export const useSettingsStore = create<SettingsState>()(
 
       fetchRules: async () => {
         try {
-          const { data } = await api.get("/settings/rules");
-          set({ rules: data });
+          const { data } = await api.get<BackendRulesResponse>("/rules");
+          set((state) => ({
+            rules: mapRulesFromBackend(data, state.rules.checklist),
+          }));
         } catch {
           // Use defaults
         }
       },
 
       updateRules: async (rules: Partial<TradingRules>) => {
-        set({ isSaving: true });
+        const mergedRules: TradingRules = {
+          ...get().rules,
+          ...rules,
+        };
+
+        set({ isSaving: true, rules: mergedRules });
         try {
-          const { data: newRules } = await api.post("/settings/rules", rules);
-          set({ rules: newRules, isSaving: false });
+          const payload = mapRulesToBackend(mergedRules);
+          const { data } = await api.put<BackendRulesResponse>("/rules", payload);
+          set((state) => ({
+            rules: mapRulesFromBackend(data, state.rules.checklist),
+            isSaving: false,
+          }));
         } catch (err) {
           console.error("Failed to save rules", err);
           set({ isSaving: false });

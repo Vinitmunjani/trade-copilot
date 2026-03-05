@@ -17,7 +17,7 @@ from app.models.trade import Trade, TradeDirection, TradeStatus
 from app.models.trade_log import TradeLog
 from app.models.trading_rules import TradingRules
 from app.services.behavioral_service import run_all_checks
-from app.services.ai_service import analyze_pre_trade, analyze_post_trade, analyze_trade_modified
+from app.services.ai_service import analyze_pre_trade, analyze_post_trade_streaming, analyze_trade_modified
 from app.services.stats_service import get_user_history_summary, save_daily_stats
 from app.services.market_service import get_market_context, fetch_live_market_context
 from app.services.notification_service import notification_service
@@ -485,7 +485,49 @@ class TradeProcessingService:
                 if not trade:
                     return
 
-                review = await analyze_post_trade(review_input, pre_analysis)
+                if self._ws_manager:
+                    await self._ws_manager.broadcast_to_user(
+                        user_id,
+                        {
+                            "type": "ai_review_stream",
+                            "trade_id": trade_id,
+                            "status": "started",
+                        },
+                    )
+
+                stream_buffer = ""
+
+                async def _emit_chunk(text: str) -> None:
+                    nonlocal stream_buffer
+                    stream_buffer += text
+                    if len(stream_buffer) < 120 and "\n" not in stream_buffer:
+                        return
+                    chunk = stream_buffer
+                    stream_buffer = ""
+                    if self._ws_manager:
+                        await self._ws_manager.broadcast_to_user(
+                            user_id,
+                            {
+                                "type": "ai_review_stream",
+                                "trade_id": trade_id,
+                                "status": "chunk",
+                                "chunk": chunk,
+                            },
+                        )
+
+                review = await analyze_post_trade_streaming(review_input, pre_analysis, on_chunk=_emit_chunk)
+
+                if stream_buffer and self._ws_manager:
+                    await self._ws_manager.broadcast_to_user(
+                        user_id,
+                        {
+                            "type": "ai_review_stream",
+                            "trade_id": trade_id,
+                            "status": "chunk",
+                            "chunk": stream_buffer,
+                        },
+                    )
+
                 review_dict = review.model_dump()
                 trade.ai_review = review_dict
 
@@ -509,8 +551,26 @@ class TradeProcessingService:
                             "ai_review": review_dict,
                         },
                     )
+                    await self._ws_manager.broadcast_to_user(
+                        user_id,
+                        {
+                            "type": "ai_review_stream",
+                            "trade_id": trade_id,
+                            "status": "completed",
+                            "ai_review": review_dict,
+                        },
+                    )
         except Exception:
             logger.exception(f"Background post-trade AI failed for trade {trade_id}")
+            if self._ws_manager:
+                await self._ws_manager.broadcast_to_user(
+                    user_id,
+                    {
+                        "type": "ai_review_stream",
+                        "trade_id": trade_id,
+                        "status": "failed",
+                    },
+                )
 
     async def process_trade_closed(self, user_id: str, trade_data: Dict[str, Any]) -> Optional[Trade]:
         """Process a trade being closed."""
@@ -646,6 +706,7 @@ class TradeProcessingService:
                     "tp": trade.tp,
                     "pnl": round(trade.pnl, 2) if trade.pnl is not None else None,
                     "pnl_r": trade.pnl_r,
+                    "duration_seconds": trade.duration_seconds,
                     "behavioral_flags": [f.get("flag", "") for f in (trade.behavioral_flags or [])],
                 }
                 task = asyncio.create_task(

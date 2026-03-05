@@ -59,7 +59,7 @@ const pricingPlans = [
     borderClass: "border-accent/30",
     bgClass: "from-surface via-surface-muted to-accent/5",
     ctaLabel: "Claim Tactician Access",
-    ctaExtraClass: "shadow-glow font-semibold",
+    ctaExtraClass: "font-semibold",
     ctaVariant: "default" as const,
     badge: "Most Popular",
     callout: "Chosen by 73% of active traders",
@@ -197,7 +197,7 @@ export default function PricingPage() {
             </Button>
             <Button
               size="lg"
-              className="hidden text-sm font-semibold shadow-glow md:inline-flex"
+              className="hidden text-sm font-semibold md:inline-flex"
               onClick={() => router.push("/register")}
             >
               Start Free Trial

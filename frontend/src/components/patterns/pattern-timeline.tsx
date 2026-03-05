@@ -39,6 +39,13 @@ interface PatternTimelineProps {
   patterns?: BehavioralAlert[];
 }
 
+function stripEmojis(text: string): string {
+  return text
+    .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 export function PatternTimeline({ patterns = [] }: PatternTimelineProps) {
   if (!patterns || patterns.length === 0) {
     return (
@@ -120,7 +127,7 @@ export function PatternTimeline({ patterns = [] }: PatternTimelineProps) {
                           )}
                         </div>
                         <p className="text-sm text-slate-400 mb-2">
-                          {pattern.message}
+                          {stripEmojis(pattern.message)}
                         </p>
                         <div className="flex items-center gap-4 text-xs text-slate-500">
                           <span>{formatRelativeTime(pattern.created_at)}</span>

@@ -24,7 +24,7 @@ export function PnlCard({ pnl, pnlR, label = "Today's P&L", tradesCount }: PnlCa
             <p
               className={cn(
                 "mt-4 text-4xl font-semibold tracking-tight",
-                isPositive ? "text-foreground" : "text-danger"
+                isPositive ? "text-accent" : "text-danger"
               )}
             >
               {formatCurrency(pnl)}
@@ -32,7 +32,7 @@ export function PnlCard({ pnl, pnlR, label = "Today's P&L", tradesCount }: PnlCa
             <p
               className={cn(
                 "text-lg font-medium",
-                isPositive ? "text-accent" : "text-danger"
+                isPositive ? "text-foreground" : "text-danger"
               )}
             >
               {formatR(pnlR)}

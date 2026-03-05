@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-5.2"
     ANTHROPIC_API_KEY: str = ""
+    ENABLE_M15_CONTEXT: bool = False
 
     # JWT
     JWT_SECRET: str = "change-me-in-production-super-secret-key"

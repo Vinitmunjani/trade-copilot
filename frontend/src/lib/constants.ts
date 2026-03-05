@@ -1,6 +1,7 @@
 // API endpoint - routes to AWS backend
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/api/v1/ws/trades";
+export const SHOW_AI_TOKEN_USAGE = (process.env.NEXT_PUBLIC_SHOW_AI_TOKEN_USAGE || "false").toLowerCase() === "true";
 
 export const SESSIONS = [
   { value: "london", label: "London", hours: "08:00-16:00 GMT" },

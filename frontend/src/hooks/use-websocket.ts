@@ -6,14 +6,21 @@ import { useTradesStore } from "@/stores/trades-store";
 import { useAlertsStore } from "@/stores/alerts-store";
 import { useAiPanelStore } from "@/stores/ai-panel-store";
 import { wsClient } from "@/lib/ws";
-import type { WSEvent, Trade, WSScoreUpdate, WSAlertUpdate } from "@/types";
+import type { WSEvent, Trade, WSScoreUpdate, WSAlertUpdate, WSReviewStreamUpdate } from "@/types";
 
 export function useWebSocket() {
   const { token } = useAuthStore();
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const { addTrade, updateTrade, patchTrade, bumpStats } = useTradesStore();
   const { addAlert } = useAlertsStore();
-  const { setAnalysis, open: openPanel } = useAiPanelStore();
+  const {
+    setAnalysis,
+    open: openPanel,
+    setStreamStarted,
+    appendStreamChunk,
+    setStreamCompleted,
+    setStreamFailed,
+  } = useAiPanelStore();
 
   useEffect(() => {
     if (!token) return;
@@ -48,6 +55,20 @@ export function useWebSocket() {
         // Show AI analysis panel with new data
         setAnalysis(scoreEvent.trade_id, scoreEvent.ai_score, scoreEvent.ai_analysis, scoreEvent.ai_review);
         openPanel();
+      } else if (event.type === "ai_review_stream") {
+        const streamEvent = event as WSReviewStreamUpdate;
+        if (streamEvent.status === "started") {
+          setStreamStarted(streamEvent.trade_id);
+          openPanel();
+        } else if (streamEvent.status === "chunk") {
+          if (streamEvent.chunk) {
+            appendStreamChunk(streamEvent.trade_id, streamEvent.chunk);
+          }
+        } else if (streamEvent.status === "completed") {
+          setStreamCompleted(streamEvent.trade_id, streamEvent.ai_review ?? null);
+        } else if (streamEvent.status === "failed") {
+          setStreamFailed(streamEvent.trade_id);
+        }
       } else if (event.type === "behavioral_alert") {
         const alertEvent = event as WSAlertUpdate;
         console.log("[WS] Behavioral alert:", alertEvent.alert?.pattern_type);
@@ -62,7 +83,20 @@ export function useWebSocket() {
         unsubscribeRef.current();
       }
     };
-  }, [token, addTrade, updateTrade, patchTrade, bumpStats, addAlert, setAnalysis, openPanel]);
+  }, [
+    token,
+    addTrade,
+    updateTrade,
+    patchTrade,
+    bumpStats,
+    addAlert,
+    setAnalysis,
+    openPanel,
+    setStreamStarted,
+    appendStreamChunk,
+    setStreamCompleted,
+    setStreamFailed,
+  ]);
 
   return { isConnected: wsClient.isConnected };
 }

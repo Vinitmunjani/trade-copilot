@@ -16,6 +16,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AmpereLogo } from "@/components/ui/ampere-logo";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, meta: "Live" },
@@ -42,8 +43,8 @@ export function Sidebar() {
         )}
       >
         <div className="flex items-center gap-3 rounded-3xl border border-border bg-surface-muted px-4 py-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-contrast text-accent text-base font-semibold tracking-wide">
-            AC
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-contrast">
+            <AmpereLogo className="h-6 w-6" />
           </div>
           {!collapsed && (
             <div>

@@ -14,6 +14,7 @@ class TradeScore(BaseModel):
     suggestion: str = Field(..., description="Actionable suggestion for the trader")
     market_alignment: str = Field(..., description="How trade aligns with market context")
     risk_assessment: str = Field(..., description="Risk assessment summary")
+    token_usage: Optional[Dict[str, int]] = Field(default=None, description="LLM token usage (testing only)")
 
 
 class TradeReview(BaseModel):
@@ -25,6 +26,7 @@ class TradeReview(BaseModel):
     what_went_well: List[str] = Field(default_factory=list)
     what_to_improve: List[str] = Field(default_factory=list)
     emotional_assessment: str = Field(..., description="Assessment of emotional state during trade")
+    token_usage: Optional[Dict[str, int]] = Field(default=None, description="LLM token usage (testing only)")
 
 
 class BehavioralAlert(BaseModel):

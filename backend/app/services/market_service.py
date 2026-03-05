@@ -478,6 +478,72 @@ def determine_trend(price: float, ema20: Optional[float], ema50: Optional[float]
     return result
 
 
+def build_m15_context(
+    opens: List[float],
+    highs: List[float],
+    lows: List[float],
+    closes: List[float],
+    current_price: float,
+    h1_support_levels: List[float],
+    h1_resistance_levels: List[float],
+) -> Optional[dict]:
+    """Build compact M15 execution context for AI prompts.
+
+    Returns a small feature block instead of raw candles to control token cost
+    and latency while still improving execution-time reasoning.
+    """
+    if not closes or len(closes) < 20:
+        return None
+
+    ema20 = calculate_ema(closes, 20)
+    ema50 = calculate_ema(closes, 50)
+    trend = determine_trend(current_price, ema20, ema50, None)
+    atr15 = calculate_atr(highs, lows, closes, 14)
+    candle_pattern = detect_candle_pattern(opens, highs, lows, closes) if opens else "none"
+
+    breakout_state = "none"
+    if len(closes) >= 21 and len(highs) >= 21 and len(lows) >= 21:
+        prior_high = max(highs[-21:-1])
+        prior_low = min(lows[-21:-1])
+        last_close = closes[-1]
+        if last_close > prior_high:
+            breakout_state = "breakout_up"
+        elif last_close < prior_low:
+            breakout_state = "breakout_down"
+
+    body_ratio = None
+    upper_wick_ratio = None
+    lower_wick_ratio = None
+    if opens and highs and lows and closes:
+        last_open, last_high, last_low, last_close = opens[-1], highs[-1], lows[-1], closes[-1]
+        rng = last_high - last_low
+        if rng > 0:
+            body_ratio = round(abs(last_close - last_open) / rng, 3)
+            upper_wick_ratio = round((last_high - max(last_open, last_close)) / rng, 3)
+            lower_wick_ratio = round((min(last_open, last_close) - last_low) / rng, 3)
+
+    dist_data = calculate_price_distances(
+        current_price,
+        h1_support_levels,
+        h1_resistance_levels,
+        atr15,
+    )
+
+    return {
+        "trend": trend["overall"],
+        "ema20_trend": trend["ema20_trend"],
+        "ema50_trend": trend["ema50_trend"],
+        "atr": atr15,
+        "candle_pattern": candle_pattern,
+        "breakout_state": breakout_state,
+        "body_ratio": body_ratio,
+        "upper_wick_ratio": upper_wick_ratio,
+        "lower_wick_ratio": lower_wick_ratio,
+        "distance_to_h1_support_atr": dist_data["distance_to_support_atr"],
+        "distance_to_h1_resistance_atr": dist_data["distance_to_resistance_atr"],
+    }
+
+
 async def get_market_context(
     symbol: str,
     redis_client: Optional[aioredis.Redis] = None,
@@ -653,7 +719,7 @@ async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
     Returns:
         Market context dict (same schema as ``get_market_context`` output).
     """
-    cache_key = f"market_context:{symbol}"
+    cache_key = f"market_context_live:v2:{symbol}:m15:{int(settings.ENABLE_M15_CONTEXT)}"
 
     # --- 1. Check Redis cache first ---
     try:
@@ -704,6 +770,9 @@ async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
         "news_risk_level":   "unknown",
         "news_events_1h":    0,
         "nearest_news_event": None,
+        "news_events_15m": 0,
+        "m15_context": None,
+        "context_version": "v2",
         "session":           get_current_session(),
         "daily_range_percent": None,
         "timestamp":         datetime.now(timezone.utc).isoformat(),
@@ -751,6 +820,12 @@ async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
         # Fetch 250 H1 candles (enough for EMA-200) and 30 D1 candles (ATR + daily range)
         h1_candles_raw = await account.get_historical_candles(symbol, "1h", limit=250)
         d1_candles_raw = await account.get_historical_candles(symbol, "1d", limit=30)
+        m15_candles_raw = []
+        if settings.ENABLE_M15_CONTEXT:
+            try:
+                m15_candles_raw = await account.get_historical_candles(symbol, "15m", limit=180)
+            except Exception:
+                logger.warning(f"Failed to fetch M15 candles for {symbol}; continuing with H1-only context")
 
         # Sort oldest-first for EMA calculation
         def _sort_candles(candles):
@@ -758,6 +833,7 @@ async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
 
         h1_candles = _sort_candles(h1_candles_raw) if h1_candles_raw else []
         d1_candles = _sort_candles(d1_candles_raw) if d1_candles_raw else []
+        m15_candles = _sort_candles(m15_candles_raw) if m15_candles_raw else []
 
         if not h1_candles:
             logger.warning(f"MetaAPI returned no H1 candles for {symbol}")
@@ -768,6 +844,11 @@ async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
         h1_highs  = [float(c.get("high",  0)) for c in h1_candles]
         h1_lows   = [float(c.get("low",   0)) for c in h1_candles]
         h1_opens  = [float(c.get("open",  0)) for c in h1_candles]
+
+        m15_closes = [float(c.get("close", 0)) for c in m15_candles]
+        m15_highs  = [float(c.get("high",  0)) for c in m15_candles]
+        m15_lows   = [float(c.get("low",   0)) for c in m15_candles]
+        m15_opens  = [float(c.get("open",  0)) for c in m15_candles]
 
         current_price = h1_closes[-1] if h1_closes else 0
 
@@ -786,6 +867,18 @@ async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
         atr    = calculate_atr(d_highs, d_lows, d_closes, 14)
         trend  = determine_trend(current_price, ema20, ema50, ema200)
         levels = identify_key_levels(h1_highs, h1_lows, h1_closes, current_price)
+
+        m15_context = None
+        if settings.ENABLE_M15_CONTEXT and m15_closes:
+            m15_context = build_m15_context(
+                opens=m15_opens,
+                highs=m15_highs,
+                lows=m15_lows,
+                closes=m15_closes,
+                current_price=current_price,
+                h1_support_levels=levels["support_levels"],
+                h1_resistance_levels=levels["resistance_levels"],
+            )
 
         # Fibonacci pivot levels — use previous day's OHLC
         fib_pivots = None
@@ -853,6 +946,7 @@ async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
         # News risk
         news_risk_level   = "unknown"
         news_events_1h    = 0
+        news_events_15m   = 0
         nearest_news_event = None
         try:
             from app.services.news_service import get_news_summary  # local import
@@ -861,6 +955,7 @@ async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
             news_summary = await get_news_summary(symbol, _rc)
             news_risk_level    = news_summary.get("risk_level", "unknown")
             news_events_1h     = news_summary.get("high_impact_events_1h", 0)
+            news_events_15m    = news_summary.get("high_impact_events_15m", 0)
             nearest_event_obj  = news_summary.get("nearest_event")
             if nearest_event_obj:
                 nearest_news_event = (
@@ -906,7 +1001,10 @@ async def fetch_live_market_context(symbol: str, user_id: str) -> dict:
             "prev_day_close":    prev_day_close,
             "news_risk_level":   news_risk_level,
             "news_events_1h":    news_events_1h,
+            "news_events_15m":   news_events_15m,
             "nearest_news_event": nearest_news_event,
+            "m15_context":       m15_context,
+            "context_version":   "v2",
             "session":           get_current_session(),
             "daily_range_percent": daily_range_percent,
             "timestamp":         datetime.now(timezone.utc).isoformat(),

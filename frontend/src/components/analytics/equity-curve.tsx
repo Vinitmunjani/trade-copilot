@@ -43,8 +43,8 @@ export function EquityCurve({ data = [] }: EquityCurveProps) {
           <AreaChart data={data}>
             <defs>
               <linearGradient id="colorPnl" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                <stop offset="5%" stopColor="#2f9fc1" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#2f9fc1" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
@@ -71,7 +71,7 @@ export function EquityCurve({ data = [] }: EquityCurveProps) {
             <Area
               type="monotone"
               dataKey="cumulative_pnl"
-              stroke="#10b981"
+              stroke="#2f9fc1"
               strokeWidth={2}
               fillOpacity={1}
               fill="url(#colorPnl)"

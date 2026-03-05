@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { AmpereLogo } from "@/components/ui/ampere-logo";
 import { useAuthStore } from "@/stores/auth-store";
-import { Activity, Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,7 +35,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Activity className="h-8 w-8 text-accent" />
+            <AmpereLogo className="h-8 w-8" />
             <span className="text-2xl font-bold text-foreground">ampere.capital</span>
           </div>
           <p className="text-muted text-sm">AI-powered trading psychology</p>

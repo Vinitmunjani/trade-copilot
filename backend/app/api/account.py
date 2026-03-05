@@ -312,6 +312,16 @@ async def get_account_info(
     accounts = result.scalars().all()
 
     if not accounts:
+        if current_user.mt_login and current_user.metaapi_account_id:
+            return TradingAccountResponse(
+                connected=False,
+                account_id=current_user.metaapi_account_id,
+                login=current_user.mt_login,
+                server=current_user.mt_server,
+                platform=current_user.mt_platform,
+                connection_status="linked",
+                message="Account linked, waiting for terminal heartbeat...",
+            )
         return TradingAccountResponse(
             connected=False,
             connection_status="not_configured",
@@ -375,6 +385,15 @@ async def get_account_status(
     accounts = result.scalars().all()
 
     if not accounts:
+        if current_user.mt_login and current_user.metaapi_account_id:
+            return AccountStatus(
+                connected=False,
+                login=current_user.mt_login,
+                server=current_user.mt_server,
+                platform=current_user.mt_platform,
+                connection_status="linked",
+                broker=current_user.settings.get("broker") if current_user.settings else None,
+            )
         return AccountStatus(
             connected=False,
             login=current_user.mt_login,

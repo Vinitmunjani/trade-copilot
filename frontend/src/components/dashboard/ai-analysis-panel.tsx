@@ -4,6 +4,7 @@ import React from "react";
 import { X, Brain, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Lightbulb, BarChart2 } from "lucide-react";
 import { useAiPanelStore } from "@/stores/ai-panel-store";
 import { cn } from "@/lib/utils";
+import { SHOW_AI_TOKEN_USAGE } from "@/lib/constants";
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -47,7 +48,7 @@ function TagList({ items, variant }: { items: string[]; variant: "success" | "da
 }
 
 export function AiAnalysisPanel() {
-  const { isOpen, close, aiScore, aiAnalysis, aiReview } = useAiPanelStore();
+  const { isOpen, close, aiScore, aiAnalysis, aiReview, streamText, streamStatus } = useAiPanelStore();
 
   const isAnalyzing = isOpen && aiScore === null && !aiAnalysis;
 
@@ -163,27 +164,49 @@ export function AiAnalysisPanel() {
                   <p className="text-sm text-foreground/90 leading-relaxed">{aiAnalysis.suggestion}</p>
                 </div>
               )}
+
+              {SHOW_AI_TOKEN_USAGE && aiAnalysis.token_usage && (
+                <div className="rounded-xl border border-border bg-surface-muted/60 p-3 text-xs text-muted">
+                  <p className="font-medium text-foreground/80">Token Usage (testing)</p>
+                  <p className="mt-1">Input: {aiAnalysis.token_usage.input_tokens ?? 0} • Output: {aiAnalysis.token_usage.output_tokens ?? 0} • Total: {aiAnalysis.token_usage.total_tokens ?? 0}</p>
+                </div>
+              )}
             </>
           ) : null}
 
           {/* Post-trade review section */}
-          {aiReview && (
+          {(aiReview || streamStatus === "started" || streamStatus === "streaming" || streamStatus === "failed") && (
             <div className="border-t border-border pt-5 space-y-4">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted">
                 <TrendingUp className="h-3.5 w-3.5" />
                 Post-Trade Review
               </div>
-              {aiReview.summary && (
+              {(streamStatus === "started" || streamStatus === "streaming") && (
+                <p className="text-xs text-muted animate-pulse">Generating review…</p>
+              )}
+              {streamStatus === "failed" && (
+                <p className="text-xs text-danger">Review stream interrupted. Final review will appear when ready.</p>
+              )}
+              {!aiReview?.summary && streamText && (
+                <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{streamText}</p>
+              )}
+              {aiReview?.summary && (
                 <p className="text-sm text-foreground/90 leading-relaxed">{aiReview.summary}</p>
               )}
-              {aiReview.lessons?.length > 0 && (
+              {aiReview?.lessons?.length > 0 && (
                 <Section icon={Lightbulb} title="Key Lessons">
-                  <TagList items={aiReview.lessons} variant="muted" />
+                  <TagList items={aiReview?.lessons ?? []} variant="muted" />
                 </Section>
               )}
-              {aiReview.suggestion && (
+              {aiReview?.suggestion && (
                 <div className="rounded-xl border border-border bg-surface-muted/60 p-4">
                   <p className="text-sm text-foreground/80 leading-relaxed">{aiReview.suggestion}</p>
+                </div>
+              )}
+              {SHOW_AI_TOKEN_USAGE && aiReview?.token_usage && (
+                <div className="rounded-xl border border-border bg-surface-muted/60 p-3 text-xs text-muted">
+                  <p className="font-medium text-foreground/80">Token Usage (testing)</p>
+                  <p className="mt-1">Input: {aiReview.token_usage.input_tokens ?? 0} • Output: {aiReview.token_usage.output_tokens ?? 0} • Total: {aiReview.token_usage.total_tokens ?? 0}</p>
                 </div>
               )}
             </div>
