@@ -16,6 +16,8 @@ from app.schemas.user import (
     AccountStatus,
     TradingAccountConnect,
     TradingAccountResponse,
+    AutoAdjustSettingsResponse,
+    AutoAdjustSettingsUpdateRequest,
 )
 from app.schemas.user import MetaAccountResponse
 from app.schemas.trade import SimulateTradeRequest, TradeResponse
@@ -27,6 +29,7 @@ from app.models.meta_account import MetaAccount
 from app.models.subscription import Subscription
 from app.models.trial_account_claim import TrialAccountClaim
 from app.models.trade import Trade, TradeStatus
+from app.services.trader_data_service import build_trader_data_payload
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Account"])
@@ -440,6 +443,82 @@ async def get_account_status(
     )
 
 
+@router.get("/account/auto-adjust-settings", response_model=AutoAdjustSettingsResponse)
+async def get_auto_adjust_settings(
+    current_user: User = Depends(get_current_user),
+):
+    """Return resolved auto-adjust settings for the current user."""
+    app_settings = get_settings()
+    user_settings = current_user.settings or {}
+
+    enabled = bool(user_settings.get("beta_auto_adjust", False))
+    score_threshold = int(
+        user_settings.get(
+            "auto_adjust_score_threshold",
+            getattr(app_settings, "AUTO_ADJUST_DEFAULT_THRESHOLD", 3),
+        )
+    )
+    mode = str(
+        user_settings.get(
+            "auto_adjust_mode",
+            getattr(app_settings, "AUTO_ADJUST_DEFAULT_MODE", "hybrid"),
+        )
+    ).lower()
+    symbols = user_settings.get("auto_adjust_symbols") or []
+
+    return AutoAdjustSettingsResponse(
+        enabled=enabled,
+        score_threshold=max(1, min(10, score_threshold)),
+        mode=mode if mode in {"close", "modify", "hybrid"} else "hybrid",
+        symbols=[str(s).upper() for s in symbols if str(s).strip()],
+    )
+
+
+@router.put("/account/auto-adjust-settings", response_model=AutoAdjustSettingsResponse)
+async def update_auto_adjust_settings(
+    payload: AutoAdjustSettingsUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update per-user auto-adjust settings (beta)."""
+    app_settings = get_settings()
+    merged = dict(current_user.settings or {})
+
+    if payload.enabled is not None:
+        merged["beta_auto_adjust"] = bool(payload.enabled)
+    if payload.score_threshold is not None:
+        merged["auto_adjust_score_threshold"] = int(payload.score_threshold)
+    if payload.mode is not None:
+        merged["auto_adjust_mode"] = payload.mode
+    if payload.symbols is not None:
+        merged["auto_adjust_symbols"] = [
+            str(symbol).strip().upper()
+            for symbol in payload.symbols
+            if str(symbol).strip()
+        ]
+
+    current_user.settings = merged
+    await db.commit()
+    await db.refresh(current_user)
+
+    return AutoAdjustSettingsResponse(
+        enabled=bool(merged.get("beta_auto_adjust", False)),
+        score_threshold=int(
+            merged.get(
+                "auto_adjust_score_threshold",
+                getattr(app_settings, "AUTO_ADJUST_DEFAULT_THRESHOLD", 3),
+            )
+        ),
+        mode=str(
+            merged.get(
+                "auto_adjust_mode",
+                getattr(app_settings, "AUTO_ADJUST_DEFAULT_MODE", "hybrid"),
+            )
+        ).lower(),
+        symbols=[str(s).upper() for s in (merged.get("auto_adjust_symbols") or []) if str(s).strip()],
+    )
+
+
 @router.get("/accounts", response_model=list[MetaAccountResponse])
 async def list_meta_accounts(
     current_user: User = Depends(get_current_user),
@@ -531,193 +610,20 @@ async def disconnect_account(
 async def get_trader_data(
     user_id: str = Query(None, description="User ID (UUID)"),
     email: str = Query(None, description="User email to lookup"),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """DEBUG endpoint: Get trader account data by user_id or email.
-    
-    Returns user info, connected MetaAPI accounts, and streaming logs.
-    Query Params:
-        user_id: User UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)
-        email: User email (e.g., trader@example.com) - fallback if user_id not provided
+    """Return trader diagnostics for the authenticated user.
+
+    Optional user_id/email filters are accepted for backward compatibility,
+    but they must match the authenticated user.
     """
-    # Find user by user_id or email
-    user = None
-    if user_id:
-        try:
-            user_uuid = uuid.UUID(user_id)
-            result = await db.execute(select(User).where(User.id == user_uuid))
-            user = result.scalar_one_or_none()
-        except (ValueError, TypeError) as e:
-            raise HTTPException(status_code=400, detail=f"Invalid user_id format: {e}")
-    elif email:
-        result = await db.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
-    else:
-        raise HTTPException(status_code=400, detail="Either user_id or email is required")
-    
-    if not user:
-        id_str = user_id or email
-        raise HTTPException(status_code=404, detail=f"User {id_str} not found")
-    
-    # Get MetaAPI accounts
-    result = await db.execute(select(MetaAccount).where(MetaAccount.user_id == user.id))
-    accounts = result.scalars().all()
-    
-    # Get open trades
-    result = await db.execute(
-        select(Trade).where(
-            (Trade.user_id == user.id) & 
-            (Trade.status == TradeStatus.OPEN)
-        )
-    )
-    trades = result.scalars().all()
+    if user_id and user_id != str(current_user.id):
+        raise HTTPException(status_code=403, detail="You can only access your own trader data")
+    if email and email.lower().strip() != current_user.email.lower().strip():
+        raise HTTPException(status_code=403, detail="You can only access your own trader data")
 
-    deduped_trades = []
-    seen_open_external_ids = set()
-    for trade in trades:
-        ext_id = trade.external_trade_id
-        if ext_id and ext_id in seen_open_external_ids:
-            continue
-        if ext_id:
-            seen_open_external_ids.add(ext_id)
-        deduped_trades.append(trade)
-    
-    # collect logs for each account if service has them
-    from app.services.metaapi_service import metaapi_service
-
-    async def _get_or_reconnect_logs(target_account_id: str, last_heartbeat) -> list[str]:
-        account_logs = metaapi_service.get_logs(target_account_id)
-        if account_logs:
-            return account_logs
-
-        # If this backend process has no in-memory listener/logs for the account,
-        # attempt a best-effort reconnect before returning the placeholder line.
-        # This helps recover after backend restarts without requiring manual reconnect.
-        user_id_str = str(user.id)
-        is_live_connected = metaapi_service.is_account_connected(user_id_str, target_account_id)
-        if not is_live_connected:
-            try:
-                reconnect_result = await metaapi_service.connect(user, account_id=target_account_id)
-                if reconnect_result.get("connected"):
-                    refreshed_logs = metaapi_service.get_logs(target_account_id)
-                    if refreshed_logs:
-                        return refreshed_logs
-                    return [
-                        f"[{datetime.now(timezone.utc).isoformat()}] ✅ Auto-reconnect succeeded for account {target_account_id}."
-                    ]
-                reconnect_error = reconnect_result.get("error") or reconnect_result.get("status")
-                if reconnect_error:
-                    return [
-                        f"[{datetime.now(timezone.utc).isoformat()}] ⚠️ Auto-reconnect failed: {reconnect_error}."
-                    ]
-            except Exception as reconnect_error:
-                logger.warning(
-                    f"Auto-reconnect attempt failed for account {target_account_id}: {reconnect_error}"
-                )
-                return [
-                    f"[{datetime.now(timezone.utc).isoformat()}] ❌ Auto-reconnect exception: {reconnect_error}."
-                ]
-
-        status_label = "connected" if _is_connected_recently(last_heartbeat) else "disconnected"
-        hb = last_heartbeat.isoformat() if last_heartbeat else "never"
-        return [
-            f"[{datetime.now(timezone.utc).isoformat()}] ℹ️ No streaming events captured in this backend session. "
-            f"Status: {status_label}. Last heartbeat: {hb}."
-        ]
-
-    logs_map = {}
-    all_service_logs = metaapi_service.get_logs() or {}
-    now_iso = datetime.now(timezone.utc).isoformat()
-    # account entries from MetaAccount table
-    for acc in accounts:
-        if acc.metaapi_account_id:
-            account_logs = await _get_or_reconnect_logs(
-                acc.metaapi_account_id,
-                acc.mt_last_heartbeat,
-            )
-            logs_map[acc.metaapi_account_id] = account_logs
-    # also consider the legacy user.metaapi_account_id field if present
-    if user.metaapi_account_id and user.metaapi_account_id not in logs_map:
-        account_logs = await _get_or_reconnect_logs(
-            user.metaapi_account_id,
-            user.mt_last_heartbeat,
-        )
-        logs_map[user.metaapi_account_id] = account_logs
-
-    # Include any in-memory logs not present in DB mappings (helps right after reconnects)
-    for acc_id, lines in all_service_logs.items():
-        if acc_id not in logs_map and lines:
-            logs_map[acc_id] = list(lines)
-
-    user_id_str = str(user.id)
-    meta_list = []
-    for acc in accounts:
-        live_connected = bool(
-            acc.metaapi_account_id
-            and metaapi_service.is_account_connected(user_id_str, acc.metaapi_account_id)
-        )
-        meta_list.append(
-            {
-                "id": str(acc.id),
-                "metaapi_account_id": acc.metaapi_account_id,
-                "mt_login": acc.mt_login,
-                "mt_server": acc.mt_server,
-                "mt_platform": acc.mt_platform,
-                "last_heartbeat": acc.mt_last_heartbeat,
-                "connected": live_connected or _is_connected_recently(acc.mt_last_heartbeat),
-            }
-        )
-    # legacy single account stored on user object
-    if user.metaapi_account_id and not any(
-        m["metaapi_account_id"] == user.metaapi_account_id for m in meta_list
-    ):
-        meta_list.append(
-            {
-                "id": None,
-                "metaapi_account_id": user.metaapi_account_id,
-                "mt_login": user.mt_login,
-                "mt_server": user.mt_server,
-                "mt_platform": user.mt_platform,
-                "last_heartbeat": user.mt_last_heartbeat,
-                "connected": (
-                    metaapi_service.is_account_connected(user_id_str, user.metaapi_account_id)
-                    or _is_connected_recently(user.mt_last_heartbeat)
-                ),
-            }
-        )
-
-    return {
-        "user": {
-            "id": str(user.id),
-            "email": user.email,
-            "active": user.is_active,
-        },
-        "meta_accounts": meta_list,
-        "open_trades": [
-            {
-                "id": str(trade.id),
-                "external_id": trade.external_trade_id,
-                "symbol": trade.symbol,
-                "direction": trade.direction.value,
-                "entry_price": trade.entry_price,
-                "current_price": None,  # Would need live data from MetaAPI
-                "lot_size": trade.lot_size,
-                "sl": trade.sl,
-                "tp": trade.tp,
-                "open_time": trade.open_time,
-                "ai_score": trade.ai_score,
-                "ai_analysis": trade.ai_analysis,
-                "behavioral_flags": trade.behavioral_flags,
-            }
-            for trade in deduped_trades
-        ],
-        "summary": {
-            "total_accounts": len(accounts),
-            "connected_accounts": sum(1 for m in meta_list if m.get("connected")),
-            "open_trades_count": len(deduped_trades),
-        },
-        "streaming_logs": logs_map,
-    }
+    return await build_trader_data_payload(db=db, user=current_user)
 
 
 @router.post("/dev/simulate-trade", response_model=TradeResponse)

@@ -24,6 +24,15 @@ export default function DashboardPage() {
 
   React.useEffect(() => {
     fetchOpenTrades();
+
+    // Keep open-trade metrics (including floating P&L) fresh while dashboard is open.
+    const intervalId = window.setInterval(() => {
+      fetchOpenTrades();
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, [fetchOpenTrades]);
 
   // Realised P&L comes from the stats API (closed trades only).

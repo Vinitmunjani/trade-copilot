@@ -4,7 +4,7 @@ import uuid
 from typing import Optional, AsyncGenerator
 
 import redis.asyncio as redis
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,3 +112,28 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_admin_user(
+    current_user: User = Depends(get_current_user),
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+) -> User:
+    """Ensure the authenticated user has admin access.
+
+    Access is granted when either:
+    - User email is listed in ADMIN_EMAILS (comma-separated), or
+    - `X-Admin-Key` header exactly matches ADMIN_API_KEY.
+    """
+    admin_emails = {
+        e.strip().lower() for e in (settings.ADMIN_EMAILS or "").split(",") if e.strip()
+    }
+    has_admin_key = bool(settings.ADMIN_API_KEY) and (x_admin_key or "").strip() == settings.ADMIN_API_KEY
+    has_admin_email = current_user.email.lower() in admin_emails if admin_emails else False
+
+    if not has_admin_key and not has_admin_email:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+
+    return current_user

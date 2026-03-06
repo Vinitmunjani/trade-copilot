@@ -1,5 +1,6 @@
 import pytest
 from datetime import datetime
+import uuid
 
 from app.database import init_db, async_session_factory
 from app.models.user import User
@@ -13,7 +14,7 @@ async def test_process_trade_opened_integration():
 
     async with async_session_factory() as db:
         # Create test user
-        user = User(email="integration-test@example.com", hashed_password="x")
+        user = User(email=f"integration-test-{uuid.uuid4().hex[:8]}@example.com", hashed_password="x")
         db.add(user)
         await db.commit()
         await db.refresh(user)
@@ -43,7 +44,7 @@ async def test_process_trade_closed_computes_price_based_r_multiple():
     await init_db()
 
     async with async_session_factory() as db:
-        user = User(email="integration-test-r-multiple@example.com", hashed_password="x")
+        user = User(email=f"integration-test-r-{uuid.uuid4().hex[:8]}@example.com", hashed_password="x")
         db.add(user)
         await db.commit()
         await db.refresh(user)

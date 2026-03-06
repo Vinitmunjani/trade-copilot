@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # App
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
+    # Admin API access
+    ADMIN_API_KEY: str = ""
+    ADMIN_EMAILS: str = ""
     # Notifications
     NOTIFICATION_WEBHOOK_URL: str = ""
     SENDGRID_API_KEY: str = ""
@@ -43,6 +46,16 @@ class Settings(BaseSettings):
     # When False (default) disconnect will NOT undeploy the MetaAPI terminal
     # to avoid re-provisioning costs when the user reconnects the same account.
     METAAPI_UNDEPLOY_ON_DISCONNECT: bool = False
+
+    # Beta auto-adjust behavior
+    AUTO_ADJUST_BETA_ENABLED: bool = True
+    AUTO_ADJUST_DEFAULT_THRESHOLD: int = 3
+    AUTO_ADJUST_INTERVAL_SECONDS: int = 30
+    AUTO_ADJUST_COOLDOWN_SECONDS: int = 120
+    AUTO_ADJUST_DEFAULT_MODE: str = "hybrid"  # close | modify | hybrid
+    AUTO_ADJUST_LOW_LATENCY_ENABLED: bool = True
+    AUTO_ADJUST_FAST_CONTEXT_TIMEOUT_SECONDS: int = 2
+    AUTO_ADJUST_MAX_ACTIONS_PER_TRADE: int = 1
 
     model_config = {
         "env_file": ".env",

@@ -8,6 +8,7 @@ from app.models.trading_rules import TradingRules
 from app.models.meta_account import MetaAccount
 from app.models.subscription import Subscription
 from app.models.trial_account_claim import TrialAccountClaim
+from app.models.admin_audit_log import AdminAuditLog
 
 __all__ = [
 	"User",
@@ -18,4 +19,5 @@ __all__ = [
 	"MetaAccount",
 	"Subscription",
 	"TrialAccountClaim",
+	"AdminAuditLog",
 ]

@@ -1,9 +1,9 @@
-from typing import Optional, Union
+from typing import Optional
 """Pydantic schemas for user operations."""
 
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class UserCreate(BaseModel):
@@ -96,3 +96,98 @@ class AccountStatus(BaseModel):
     platform: Optional[str] = None
     connection_status: Optional[str] = None
     broker: Optional[str] = None
+
+
+class AutoAdjustSettingsResponse(BaseModel):
+    """Resolved auto-adjust settings for current user."""
+
+    enabled: bool
+    score_threshold: int = Field(ge=1, le=10)
+    mode: str = Field(description="close | modify | hybrid")
+    symbols: list[str] = Field(default_factory=list)
+
+
+class AutoAdjustSettingsUpdateRequest(BaseModel):
+    """Partial update payload for user auto-adjust settings."""
+
+    enabled: Optional[bool] = None
+    score_threshold: Optional[int] = Field(default=None, ge=1, le=10)
+    mode: Optional[str] = Field(default=None, description="close | modify | hybrid")
+    symbols: Optional[list[str]] = None
+
+    @field_validator("mode")
+    @classmethod
+    def validate_mode(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.strip().lower()
+        if normalized not in {"close", "modify", "hybrid"}:
+            raise ValueError("mode must be one of: close, modify, hybrid")
+        return normalized
+
+
+class AdminUserUpdateRequest(BaseModel):
+    """Schema for admin partial updates to user profile fields."""
+
+    email: Optional[EmailStr] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = Field(default=None, min_length=8)
+    metaapi_token: Optional[str] = None
+    settings: Optional[dict] = None
+    mt_login: Optional[str] = Field(default=None, max_length=50)
+    mt_server: Optional[str] = Field(default=None, max_length=255)
+    mt_platform: Optional[str] = Field(default=None, description="mt4 or mt5")
+    mt_last_heartbeat: Optional[datetime] = None
+    subscription: Optional["AdminSubscriptionUpdateRequest"] = None
+
+    @field_validator("mt_platform")
+    @classmethod
+    def validate_mt_platform(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.strip().lower()
+        if normalized not in {"mt4", "mt5"}:
+            raise ValueError("mt_platform must be 'mt4' or 'mt5'")
+        return normalized
+
+
+class AdminSubscriptionUpdateRequest(BaseModel):
+    """Schema for admin updates to a user's latest subscription row."""
+
+    plan: Optional[str] = Field(default=None, max_length=100)
+    status: Optional[str] = Field(default=None, max_length=50)
+    current_period_end: Optional[datetime] = None
+    cancel_at_period_end: Optional[bool] = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.strip().lower()
+        allowed = {"trial", "active", "trialing", "past_due", "unpaid", "canceled", "inactive"}
+        if normalized not in allowed:
+            raise ValueError("Invalid subscription status")
+        return normalized
+
+
+class AdminSubscriptionResponse(BaseModel):
+    """Admin-facing subscription details in update responses."""
+
+    plan: str
+    status: str
+    current_period_end: Optional[datetime] = None
+    cancel_at_period_end: bool
+
+    model_config = {"from_attributes": True}
+
+
+class AdminUserUpdateResponse(BaseModel):
+    """Response schema for admin mega update endpoint."""
+
+    user: UserResponse
+    subscription: Optional[AdminSubscriptionResponse] = None
+    changed_fields: dict
+
+
+AdminUserUpdateRequest.model_rebuild()

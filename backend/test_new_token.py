@@ -4,12 +4,15 @@
 import httpx
 import asyncio
 import sys
+import pytest
 from app.core.security import create_access_token, hash_password
 from app.database import async_session_factory, init_db
 from app.models.user import User
 from sqlalchemy import select
 
 BASE_URL = "http://localhost:8000"
+
+pytestmark = pytest.mark.skip(reason="Manual integration script; not part of automated pytest suite")
 
 async def create_test_user():
     """Create or get test user."""

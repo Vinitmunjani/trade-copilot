@@ -4,11 +4,14 @@
 import asyncio
 import websockets
 import json
+import pytest
 from app.core.security import create_access_token
 from app.database import async_session_factory, init_db
 from app.models.user import User
 from app.models.meta_account import MetaAccount
 from sqlalchemy import select
+
+pytestmark = pytest.mark.skip(reason="Manual integration script; not part of automated pytest suite")
 
 async def test_ws_trades():
     """Connect to WebSocket and listen for trades."""

@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { TIMEZONES, CURRENCIES } from "@/lib/constants";
@@ -21,8 +24,17 @@ import {
   Link as LinkIcon,
   Monitor,
   Server,
-  KeyRound
+  KeyRound,
+  Sparkles,
+  ShieldCheck
 } from "lucide-react";
+
+interface AutoAdjustSettingsResponse {
+  enabled: boolean;
+  score_threshold: number;
+  mode: "close" | "modify" | "hybrid";
+  symbols: string[];
+}
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
@@ -47,6 +59,13 @@ export default function SettingsPage() {
   const [mtPlatform, setMtPlatform] = useState("mt5");
   const [connectionError, setConnectionError] = useState("");
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [autoAdjustEnabled, setAutoAdjustEnabled] = useState(false);
+  const [autoAdjustThreshold, setAutoAdjustThreshold] = useState(3);
+  const [autoAdjustMode, setAutoAdjustMode] = useState<"close" | "modify" | "hybrid">("hybrid");
+  const [autoAdjustSymbolsInput, setAutoAdjustSymbolsInput] = useState("");
+  const [isAutoAdjustLoading, setIsAutoAdjustLoading] = useState(false);
+  const [isAutoAdjustSaving, setIsAutoAdjustSaving] = useState(false);
+  const [autoAdjustStatus, setAutoAdjustStatus] = useState<string | null>(null);
 
   // Always fetch fresh account info on page load (persisted store can be stale)
   useEffect(() => {
@@ -101,6 +120,30 @@ export default function SettingsPage() {
     return () => { mounted = false; };
   }, [fetchAccounts]);
 
+  useEffect(() => {
+    let mounted = true;
+    const loadAutoAdjust = async () => {
+      try {
+        setIsAutoAdjustLoading(true);
+        const { data } = await api.get<AutoAdjustSettingsResponse>("/account/auto-adjust-settings");
+        if (!mounted) return;
+        setAutoAdjustEnabled(Boolean(data.enabled));
+        setAutoAdjustThreshold(Number(data.score_threshold || 3));
+        setAutoAdjustMode((data.mode || "hybrid") as "close" | "modify" | "hybrid");
+        setAutoAdjustSymbolsInput((data.symbols || []).join(", "));
+      } catch (err) {
+        console.error("Failed to load auto-adjust settings", err);
+      } finally {
+        if (mounted) setIsAutoAdjustLoading(false);
+      }
+    };
+
+    loadAutoAdjust();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const handleConnectBroker = async () => {
     if (!loginInput.trim()) {
       setConnectionError("Please enter your MT4/MT5 account number");
@@ -138,6 +181,36 @@ export default function SettingsPage() {
       await disconnectBroker();
     } catch (error) {
       console.error("Failed to disconnect:", error);
+    }
+  };
+
+  const handleSaveAutoAdjust = async () => {
+    try {
+      setIsAutoAdjustSaving(true);
+      setAutoAdjustStatus(null);
+      const symbols = autoAdjustSymbolsInput
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+
+      const { data } = await api.put<AutoAdjustSettingsResponse>("/account/auto-adjust-settings", {
+        enabled: autoAdjustEnabled,
+        score_threshold: Math.max(1, Math.min(10, Number(autoAdjustThreshold) || 3)),
+        mode: autoAdjustMode,
+        symbols,
+      });
+
+      setAutoAdjustEnabled(Boolean(data.enabled));
+      setAutoAdjustThreshold(Number(data.score_threshold || 3));
+      setAutoAdjustMode((data.mode || "hybrid") as "close" | "modify" | "hybrid");
+      setAutoAdjustSymbolsInput((data.symbols || []).join(", "));
+      setAutoAdjustStatus("Saved");
+    } catch (err) {
+      console.error("Failed to save auto-adjust settings", err);
+      setAutoAdjustStatus("Failed to save");
+    } finally {
+      setIsAutoAdjustSaving(false);
+      setTimeout(() => setAutoAdjustStatus(null), 2500);
     }
   };
 
@@ -442,6 +515,106 @@ export default function SettingsPage() {
           >
             Refresh Logs
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Beta auto-adjust controls */}
+      <Card className="border-white/5 bg-surface/40 mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Auto Adjust
+            <Badge variant="warning" className="ml-2">Beta</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-start justify-between rounded-lg border border-white/5 bg-surface-muted/40 p-4">
+            <div>
+              <p className="text-sm font-medium text-slate-200">Enable AI Auto Adjust</p>
+              <p className="mt-1 text-xs text-slate-400">
+                If your setup quality is too low, AI can auto-adjust protection or close the trade.
+              </p>
+            </div>
+            <Switch
+              checked={autoAdjustEnabled}
+              onCheckedChange={setAutoAdjustEnabled}
+              disabled={isAutoAdjustLoading || isAutoAdjustSaving}
+              aria-label="Enable auto adjust"
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="auto-adjust-threshold">Trigger Score (1-10)</Label>
+              <Input
+                id="auto-adjust-threshold"
+                type="number"
+                min={1}
+                max={10}
+                value={autoAdjustThreshold}
+                onChange={(e) => setAutoAdjustThreshold(Number(e.target.value || 3))}
+                disabled={!autoAdjustEnabled || isAutoAdjustLoading || isAutoAdjustSaving}
+              />
+              <p className="text-xs text-slate-500">Auto-adjust triggers when AI score is at or below this value.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="auto-adjust-mode">Action Mode</Label>
+              <Select
+                value={autoAdjustMode}
+                onValueChange={(v) => setAutoAdjustMode(v as "close" | "modify" | "hybrid")}
+                disabled={!autoAdjustEnabled || isAutoAdjustLoading || isAutoAdjustSaving}
+              >
+                <SelectTrigger id="auto-adjust-mode">
+                  <SelectValue placeholder="Select mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hybrid">Hybrid (modify then close if needed)</SelectItem>
+                  <SelectItem value="modify">Modify SL/TP only</SelectItem>
+                  <SelectItem value="close">Close only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="auto-adjust-symbols">Symbols (optional)</Label>
+            <Input
+              id="auto-adjust-symbols"
+              type="text"
+              placeholder="XAUUSD, EURUSD"
+              value={autoAdjustSymbolsInput}
+              onChange={(e) => setAutoAdjustSymbolsInput(e.target.value)}
+              disabled={!autoAdjustEnabled || isAutoAdjustLoading || isAutoAdjustSaving}
+            />
+            <p className="text-xs text-slate-500">Leave empty to allow all symbols. Comma-separated list.</p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Auto-adjust only works when your trade account is connected and streaming.
+            </div>
+            <Button onClick={handleSaveAutoAdjust} disabled={isAutoAdjustLoading || isAutoAdjustSaving}>
+              {isAutoAdjustSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Auto Adjust
+                </>
+              )}
+            </Button>
+          </div>
+
+          {autoAdjustStatus && (
+            <p className={`text-xs ${autoAdjustStatus === "Saved" ? "text-emerald-400" : "text-red-400"}`}>
+              {autoAdjustStatus}
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

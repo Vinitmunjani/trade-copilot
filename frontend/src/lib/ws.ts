@@ -11,6 +11,7 @@ class WebSocketClient {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private pingInterval: NodeJS.Timeout | null = null;
   private isIntentionallyClosed = false;
 
   constructor(url: string = WS_URL) {
@@ -18,6 +19,25 @@ class WebSocketClient {
   }
 
   connect(token: string) {
+    // Avoid creating duplicate sockets when already connected with the same token.
+    if (
+      this.token === token
+      && this.ws
+      && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
+
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+
     this.token = token;
     this.isIntentionallyClosed = false;
     this.reconnectAttempts = 0;
@@ -26,17 +46,22 @@ class WebSocketClient {
 
   private _connect() {
     if (!this.token) return;
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
 
     try {
-      const wsUrl = `${this.url}?token=${this.token}`;
-      this.ws = new WebSocket(wsUrl);
+      const wsUrl = `${this._normalizeUrl(this.url)}?token=${this.token}`;
+      const socket = new WebSocket(wsUrl);
+      this.ws = socket;
 
-      this.ws.onopen = () => {
+      socket.onopen = () => {
         console.log("[WS] Connected");
         this.reconnectAttempts = 0;
+        this._startKeepAlive();
       };
 
-      this.ws.onmessage = (event) => {
+      socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data) as WSEvent;
           this.handlers.forEach((handler) => handler(data));
@@ -45,14 +70,18 @@ class WebSocketClient {
         }
       };
 
-      this.ws.onclose = (event) => {
+      socket.onclose = (event) => {
+        this._stopKeepAlive();
+        if (this.ws === socket) {
+          this.ws = null;
+        }
         console.log("[WS] Disconnected", event.code, event.reason);
         if (!this.isIntentionallyClosed) {
           this._reconnect();
         }
       };
 
-      this.ws.onerror = (error) => {
+      socket.onerror = (error) => {
         console.error("[WS] Error:", error);
       };
     } catch (err) {
@@ -79,6 +108,7 @@ class WebSocketClient {
 
   disconnect() {
     this.isIntentionallyClosed = true;
+    this._stopKeepAlive();
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -98,6 +128,30 @@ class WebSocketClient {
 
   get isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  private _normalizeUrl(rawUrl: string): string {
+    if (typeof window === "undefined") return rawUrl;
+    if (window.location.protocol === "https:" && rawUrl.startsWith("ws://")) {
+      return `wss://${rawUrl.slice("ws://".length)}`;
+    }
+    return rawUrl;
+  }
+
+  private _startKeepAlive() {
+    this._stopKeepAlive();
+    this.pingInterval = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send("ping");
+      }
+    }, 20000);
+  }
+
+  private _stopKeepAlive() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
   }
 }
 

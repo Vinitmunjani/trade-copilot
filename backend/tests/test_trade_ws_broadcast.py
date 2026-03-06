@@ -1,4 +1,5 @@
 import pytest
+import uuid
 
 from app.database import init_db, async_session_factory
 from app.models.user import User
@@ -21,7 +22,7 @@ async def test_trade_open_broadcasts_to_ws_manager():
     trade_processor.set_ws_manager(mock_ws)
 
     async with async_session_factory() as db:
-        user = User(email="ws-test@example.com", hashed_password="x")
+        user = User(email=f"ws-test-{uuid.uuid4().hex[:8]}@example.com", hashed_password="x")
         db.add(user)
         await db.commit()
         await db.refresh(user)
@@ -43,5 +44,5 @@ async def test_trade_open_broadcasts_to_ws_manager():
     assert len(mock_ws.messages) >= 1
     user_id, payload = mock_ws.messages[0]
     assert user_id == str(user.id)
-    assert payload.get("event") == "TRADE_OPENED"
-    assert payload.get("trade_id") == str(trade.id)
+    assert payload.get("type") == "trade_opened"
+    assert payload.get("trade", {}).get("id") == str(trade.id)

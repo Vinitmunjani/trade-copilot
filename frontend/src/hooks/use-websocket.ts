@@ -23,10 +23,19 @@ export function useWebSocket() {
   } = useAiPanelStore();
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      wsClient.disconnect();
+      return;
+    }
 
     wsClient.connect(token);
 
+    return () => {
+      wsClient.disconnect();
+    };
+  }, [token]);
+
+  useEffect(() => {
     const unsubscribe = wsClient.subscribe((event: WSEvent) => {
       console.log("[WS] Received event:", event.type);
 
@@ -84,7 +93,6 @@ export function useWebSocket() {
       }
     };
   }, [
-    token,
     addTrade,
     updateTrade,
     patchTrade,

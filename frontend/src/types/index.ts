@@ -167,6 +167,15 @@ export type TradeStatus = "open" | "closed" | "cancelled";
 export interface WSTradeUpdate {
   type: "trade_opened" | "trade_updated" | "trade_closed";
   trade: Trade;
+  update_kind?: "live_pnl" | "modified";
+}
+
+export interface WSAutoAdjustEvent {
+  type: "trade_auto_adjusted";
+  trade_id: string;
+  action: "modify" | "close";
+  score: number;
+  threshold: number;
 }
 
 export interface WSScoreUpdate {
@@ -197,6 +206,7 @@ export interface WSReviewStreamUpdate {
 
 export type WSEvent =
   | WSTradeUpdate
+  | WSAutoAdjustEvent
   | WSScoreUpdate
   | WSAlertUpdate
   | WSReadinessUpdate

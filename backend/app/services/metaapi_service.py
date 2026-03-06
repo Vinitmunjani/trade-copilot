@@ -8,6 +8,7 @@ triggers AI analysis, and broadcasts via WebSocket.
 import asyncio
 import logging
 import uuid
+import copy
 import os
 from datetime import datetime, timezone
 from typing import Dict,  Optional, Any
@@ -54,6 +55,7 @@ class MetaApiService:
         # keep streaming/event logs per MetaAPI account for debugging/testing
         # keyed by "account_id"; we store only the most recent 200 entries per account
         self._logs: Dict[str, list] = {}
+        self._auto_adjust_task: Optional[asyncio.Task] = None
 
     def _append_log(self, account_id: str, message: str) -> None:
         """Internal helper: append a line to the in-memory log buffer.
@@ -182,6 +184,9 @@ class MetaApiService:
         # Start background reconnects for any users who already have a MetaAPI account ID
         # (runs separately so startup isn't blocked)
         asyncio.create_task(self._auto_reconnect_all())
+        # Start background auto-adjust periodic checks.
+        if not self._auto_adjust_task or self._auto_adjust_task.done():
+            self._auto_adjust_task = asyncio.create_task(self._auto_adjust_loop())
 
     async def shutdown(self) -> None:
         """Gracefully shutdown all MetaAPI connections and client.
@@ -190,6 +195,13 @@ class MetaApiService:
         the SDK `close()` to ensure aiohttp sessions are cleaned up.
         """
         logger.info("MetaApiService shutting down: closing connections and SDK client")
+        if self._auto_adjust_task and not self._auto_adjust_task.done():
+            self._auto_adjust_task.cancel()
+            try:
+                await self._auto_adjust_task
+            except asyncio.CancelledError:
+                pass
+
         # Cancel and close per-user connections
         for user_id, state in list(self._connections.items()):
             try:
@@ -237,6 +249,23 @@ class MetaApiService:
                         logger.debug(f"Error calling MetaAPI.close(): {e}")
         except Exception as e:
             logger.debug(f"Error shutting down MetaApiService: {e}")
+
+    async def _auto_adjust_loop(self) -> None:
+        """Periodically run beta auto-adjust checks on eligible open trades."""
+        while True:
+            settings = get_settings()
+            interval = max(5, int(getattr(settings, "AUTO_ADJUST_INTERVAL_SECONDS", 30) or 30))
+            try:
+                if getattr(settings, "AUTO_ADJUST_BETA_ENABLED", False):
+                    from app.services.auto_adjust_service import auto_adjust_service
+
+                    await auto_adjust_service.run_periodic_pass()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.debug(f"Auto-adjust periodic pass failed: {e}")
+
+            await asyncio.sleep(interval)
 
     async def _auto_reconnect_all(self, initial_delay: float = 2.0) -> None:
         """Attempt to connect all users with a stored MetaAPI account ID on startup.
@@ -517,6 +546,114 @@ class MetaApiService:
             self._append_log(account_id, f"⚠️ Undeploy failed: {str(e)[:80]}")
             return False
 
+    async def close_position(
+        self,
+        user_id: str,
+        account_id: str,
+        external_trade_id: str,
+        reason: str = "auto_adjust",
+    ) -> dict:
+        """Best-effort close of an open position via MetaAPI SDK methods.
+
+        Uses introspection to support SDK method name variations across versions.
+        """
+        conn_key = f"{user_id}:{account_id}"
+        state = self._connections.get(conn_key)
+        if not state or not state.is_connected:
+            return {"ok": False, "error": "account_not_connected"}
+
+        if not external_trade_id:
+            return {"ok": False, "error": "missing_external_trade_id"}
+
+        method_candidates = [
+            "close_position",
+            "closePosition",
+            "close_trade",
+            "closeTrade",
+        ]
+        targets = [getattr(state, "connection", None), getattr(state, "account", None)]
+
+        for target in targets:
+            if not target:
+                continue
+            for method_name in method_candidates:
+                method = getattr(target, method_name, None)
+                if not callable(method):
+                    continue
+                try:
+                    result = method(external_trade_id)
+                    if asyncio.iscoroutine(result):
+                        result = await result
+                    self._append_log(account_id, f"🛡️ AUTO_ADJUST close requested for {external_trade_id} ({reason})")
+                    return {"ok": True, "provider_result": result, "method": method_name}
+                except Exception as e:
+                    logger.debug(f"close_position method {method_name} failed: {e}")
+
+        return {"ok": False, "error": "close_method_not_available"}
+
+    async def modify_position(
+        self,
+        user_id: str,
+        account_id: str,
+        external_trade_id: str,
+        new_sl: Optional[float],
+        new_tp: Optional[float],
+        reason: str = "auto_adjust",
+    ) -> dict:
+        """Best-effort SL/TP modification via MetaAPI SDK methods."""
+        conn_key = f"{user_id}:{account_id}"
+        state = self._connections.get(conn_key)
+        if not state or not state.is_connected:
+            return {"ok": False, "error": "account_not_connected"}
+
+        if not external_trade_id:
+            return {"ok": False, "error": "missing_external_trade_id"}
+
+        method_candidates = [
+            "modify_position",
+            "modifyPosition",
+            "update_position",
+            "updatePosition",
+        ]
+        payload_variants = [
+            {"stop_loss": new_sl, "take_profit": new_tp},
+            {"stopLoss": new_sl, "takeProfit": new_tp},
+            {"sl": new_sl, "tp": new_tp},
+        ]
+        targets = [getattr(state, "connection", None), getattr(state, "account", None)]
+
+        for target in targets:
+            if not target:
+                continue
+            for method_name in method_candidates:
+                method = getattr(target, method_name, None)
+                if not callable(method):
+                    continue
+                for payload in payload_variants:
+                    try:
+                        result = method(external_trade_id, **payload)
+                        if asyncio.iscoroutine(result):
+                            result = await result
+                        self._append_log(
+                            account_id,
+                            f"🛡️ AUTO_ADJUST modify requested for {external_trade_id} "
+                            f"sl={new_sl} tp={new_tp} ({reason})",
+                        )
+                        return {
+                            "ok": True,
+                            "provider_result": result,
+                            "method": method_name,
+                            "sl": new_sl,
+                            "tp": new_tp,
+                        }
+                    except TypeError:
+                        # Try next payload signature.
+                        continue
+                    except Exception as e:
+                        logger.debug(f"modify_position method {method_name} failed: {e}")
+
+        return {"ok": False, "error": "modify_method_not_available"}
+
     async def disconnect(self, user: User, account_id: Optional[str] = None, force_undeploy: bool = False) -> dict:
         """Disconnect a user's MetaAPI connection.
 
@@ -663,7 +800,7 @@ class MetaApiService:
                         continue
 
                     current_positions = {
-                        p.get("id", ""): p
+                        str(p.get("id", "")): copy.deepcopy(p)
                         for p in (terminal_state.positions or [])
                     }
 
@@ -745,25 +882,36 @@ class MetaApiService:
                             self._append_log(account_id, log_msg)
                             await self._on_trade_closed(user_id, pos, account_id)
 
-                    # Detect updated positions (SL/TP changes)
+                    # Detect updated positions (SL/TP and live PnL changes)
                     for pos_id, pos in current_positions.items():
                         if pos_id in known_positions:
                             old = known_positions[pos_id]
                             sl_changed = pos.get("stopLoss") != old.get("stopLoss")
                             tp_changed = pos.get("takeProfit") != old.get("takeProfit")
-                            if sl_changed or tp_changed:
+                            old_live_pnl = self._extract_live_position_pnl(old)
+                            new_live_pnl = self._extract_live_position_pnl(pos)
+                            pnl_changed = old_live_pnl != new_live_pnl
+
+                            if sl_changed or tp_changed or pnl_changed:
                                 symbol = pos.get('symbol', 'UNKNOWN')
                                 changes = []
                                 if sl_changed:
                                     changes.append(f"SL: {old.get('stopLoss')}→{pos.get('stopLoss')}")
                                 if tp_changed:
                                     changes.append(f"TP: {old.get('takeProfit')}→{pos.get('takeProfit')}")
+                                if pnl_changed:
+                                    changes.append(f"PnL: {old_live_pnl}→{new_live_pnl}")
                                 log_msg = f"🔧 TRADE UPDATED: {symbol} ({', '.join(changes)})"
                                 logger.info(f"[{account_id}] {log_msg}")
                                 self._append_log(account_id, log_msg)
-                                await self._on_trade_updated(user_id, pos, account_id)
+                                await self._on_trade_updated(
+                                    user_id,
+                                    pos,
+                                    account_id,
+                                    live_pnl_only=(not sl_changed and not tp_changed),
+                                )
 
-                    known_positions = current_positions
+                    known_positions = copy.deepcopy(current_positions)
 
                 except Exception as e:
                     logger.error(f"Error in event listener for user {user_id}: {e}", exc_info=True)
@@ -978,7 +1126,54 @@ class MetaApiService:
         }
         await trade_processor.process_trade_closed(user_id, trade_data)
 
-    async def _on_trade_updated(self, user_id: str, position: dict, account_id: str = "") -> None:
+    def _extract_live_position_pnl(self, position: dict) -> float | None:
+        """Extract live net PnL from a MetaAPI position snapshot.
+
+        MetaAPI may expose floating PnL under different fields depending on account
+        type and stream payload shape. We normalize to account-currency net PnL.
+        """
+        if not position:
+            return None
+
+        broker_profit = position.get("profit")
+        if broker_profit is None:
+            broker_profit = position.get("currentProfit")
+        if broker_profit is None:
+            broker_profit = position.get("unrealizedProfit")
+        if broker_profit is None:
+            broker_profit = position.get("floatingProfit")
+        if broker_profit is None:
+            broker_profit = position.get("unrealizedPnl")
+        if broker_profit is None:
+            broker_profit = position.get("pnl")
+        if broker_profit is None:
+            broker_profit = position.get("pl")
+        if broker_profit is None:
+            return None
+
+        commission = (
+            position.get("commission")
+            if position.get("commission") is not None
+            else position.get("unrealizedCommission") or 0.0
+        )
+        swap = (
+            position.get("swap")
+            if position.get("swap") is not None
+            else position.get("unrealizedSwap") or 0.0
+        )
+
+        try:
+            return round(float(broker_profit) + float(commission) + float(swap), 2)
+        except (TypeError, ValueError):
+            return None
+
+    async def _on_trade_updated(
+        self,
+        user_id: str,
+        position: dict,
+        account_id: str = "",
+        live_pnl_only: bool = False,
+    ) -> None:
         """Handle a trade being modified (SL/TP update).
 
         Args:
@@ -997,9 +1192,14 @@ class MetaApiService:
             "external_id": position.get("id", ""),
             "sl": position.get("stopLoss"),
             "tp": position.get("takeProfit"),
+            "pnl": self._extract_live_position_pnl(position),
         }
         try:
-            await trade_processor.process_trade_updated(user_id, trade_data)
+            await trade_processor.process_trade_updated(
+                user_id,
+                trade_data,
+                live_pnl_only=live_pnl_only,
+            )
         except Exception as e:
             logger.error(f"Error delegating trade update for user {user_id}: {e}")
 

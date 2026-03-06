@@ -13,10 +13,11 @@ import { useEffect, useRef } from "react";
 import { wsClient } from "@/lib/ws";
 import { useAuthStore } from "@/stores/auth-store";
 import { useToast } from "@/hooks/use-toast";
-import type { WSEvent, Trade, WSScoreUpdate, WSAlertUpdate } from "@/types";
+import type { WSEvent, Trade, WSScoreUpdate, WSAlertUpdate, WSTradeUpdate } from "@/types";
 
 function browserNotify(title: string, body: string, tag?: string) {
   if (typeof window === "undefined") return;
+  if (!("Notification" in window)) return;
   if (Notification.permission === "granted") {
     new Notification(title, {
       body,
@@ -29,8 +30,13 @@ function browserNotify(title: string, body: string, tag?: string) {
 
 async function requestNotificationPermission() {
   if (typeof window === "undefined") return;
+  if (!("Notification" in window)) return;
   if (Notification.permission === "default") {
-    await Notification.requestPermission();
+    try {
+      await Notification.requestPermission();
+    } catch {
+      // Ignore permission API errors and keep in-app toasts active.
+    }
   }
 }
 
@@ -38,6 +44,7 @@ export function useTradeNotifications() {
   const { token } = useAuthStore();
   const { toast } = useToast();
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const lastModifyToastRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     requestNotificationPermission();
@@ -67,7 +74,14 @@ export function useTradeNotifications() {
         });
         browserNotify("Trade Closed", desc, `close-${trade.id}`);
       } else if (event.type === "trade_updated") {
-        const trade = (event as any).trade as Trade;
+        const tradeUpdate = event as WSTradeUpdate;
+        if (tradeUpdate.update_kind === "live_pnl") return;
+        const trade = tradeUpdate.trade as Trade;
+        const modSig = `${trade.id}:${trade.sl ?? "null"}:${trade.tp ?? "null"}`;
+        const now = Date.now();
+        const lastShownAt = lastModifyToastRef.current.get(modSig) ?? 0;
+        if (now - lastShownAt < 10000) return;
+        lastModifyToastRef.current.set(modSig, now);
         const desc = `${trade.symbol} — SL: ${trade.sl ?? "—"} | TP: ${trade.tp ?? "—"}`;
         toast({
           title: "Trade Modified",

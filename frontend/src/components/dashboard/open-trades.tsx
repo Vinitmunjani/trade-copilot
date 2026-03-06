@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight, ArrowDownRight, AlertTriangle } from "lucide-react";
 import { AiScoreBadge } from "@/components/trades/ai-score-badge";
 import { formatCurrency, formatPrice, cn } from "@/lib/utils";
@@ -12,6 +13,8 @@ interface OpenTradesProps {
 }
 
 export function OpenTrades({ trades }: OpenTradesProps) {
+  const totalOpenPnl = trades.reduce((sum, trade) => sum + (trade.pnl ?? 0), 0);
+
   if (trades.length === 0) {
     return (
       <Card className="h-full min-h-[300px] border-white/5">
@@ -37,6 +40,12 @@ export function OpenTrades({ trades }: OpenTradesProps) {
             {trades.length}
           </span>
         </CardTitle>
+        <p className="text-xs text-muted">
+          Total live P&amp;L:{" "}
+          <span className={cn("font-medium", totalOpenPnl >= 0 ? "text-accent" : "text-danger")}>
+            {formatCurrency(totalOpenPnl)}
+          </span>
+        </p>
       </CardHeader>
       <CardContent className="space-y-3">
         {trades.map((trade) => (
@@ -65,6 +74,9 @@ export function OpenTrades({ trades }: OpenTradesProps) {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-foreground">{trade.symbol}</span>
+                  {(trade.notes || "").includes("[auto_adjust:") && (
+                    <Badge variant="warning" className="text-[10px]">Auto-adjusted</Badge>
+                  )}
                   <span
                     className={cn(
                       "text-xs font-medium",
@@ -94,13 +106,14 @@ export function OpenTrades({ trades }: OpenTradesProps) {
 
               {/* P&L */}
               <div className="text-right">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Live P&amp;L</p>
                 <p
                   className={cn(
                     "text-sm font-semibold",
                     (trade.pnl || 0) >= 0 ? "text-accent" : "text-danger"
                   )}
                 >
-                  {formatCurrency(trade.pnl || 0)}
+                  {trade.pnl == null ? "--" : formatCurrency(trade.pnl)}
                 </p>
               </div>
             </div>

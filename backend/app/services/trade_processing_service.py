@@ -21,6 +21,7 @@ from app.services.ai_service import analyze_pre_trade, analyze_post_trade_stream
 from app.services.stats_service import get_user_history_summary, save_daily_stats
 from app.services.market_service import get_market_context, fetch_live_market_context
 from app.services.notification_service import notification_service
+from app.config import get_settings
 
 
 def _derive_session(open_time: datetime) -> str:
@@ -73,6 +74,7 @@ def _build_trade_payload(trade: Trade) -> dict:
         "ai_review": trade.ai_review,
         "flags": trade.behavioral_flags or [],
         "behavioral_flags": trade.behavioral_flags or [],
+        "notes": trade.notes,
     }
 
 logger = logging.getLogger(__name__)
@@ -146,6 +148,87 @@ class TradeProcessingService:
 
     def set_ws_manager(self, ws_manager: Any) -> None:
         self._ws_manager = ws_manager
+
+    async def _run_low_latency_auto_adjust_precheck(
+        self,
+        user_id: str,
+        trade_id: str,
+        symbol: str,
+        direction: str,
+        entry_price: float,
+        sl: float | None,
+        tp: float | None,
+        alert_dicts: list,
+    ) -> None:
+        """Fast rule-based auto-adjust gate that runs before full LLM analysis.
+
+        Goal: cut intervention latency from tens of seconds to near-real-time on
+        clearly poor setups (missing protection, poor RR, counter-trend context).
+        """
+        try:
+            settings = get_settings()
+            if not getattr(settings, "AUTO_ADJUST_LOW_LATENCY_ENABLED", True):
+                return
+
+            score = 6
+
+            # Missing protection is immediately high-risk.
+            if sl is None or tp is None:
+                score = min(score, 2)
+
+            # Basic RR precheck from provided SL/TP.
+            if sl is not None and tp is not None:
+                risk = abs(entry_price - sl)
+                reward = abs(tp - entry_price)
+                rr = (reward / risk) if risk > 0 else None
+                if rr is not None:
+                    if rr < 1.0:
+                        score = min(score, 2)
+                    elif rr < 1.2:
+                        score = min(score, 3)
+                    elif rr < 1.5:
+                        score = min(score, 4)
+
+            # Behavioral severity can tighten the provisional score.
+            severities = {str((a or {}).get("severity", "")).lower() for a in (alert_dicts or [])}
+            if "critical" in severities:
+                score = min(score, 2)
+            elif "high" in severities:
+                score = min(score, 3)
+
+            # Lightweight live context (strict timeout) for trend/news mismatch.
+            market = {}
+            timeout_seconds = max(1, int(getattr(settings, "AUTO_ADJUST_FAST_CONTEXT_TIMEOUT_SECONDS", 2) or 2))
+            try:
+                market = await asyncio.wait_for(
+                    fetch_live_market_context(symbol, user_id),
+                    timeout=timeout_seconds,
+                )
+            except Exception:
+                market = {}
+
+            trend = str(market.get("overall_trend") or market.get("trend") or "").lower()
+            if trend in {"bullish", "bearish"}:
+                if (direction.upper() == "BUY" and trend == "bearish") or (
+                    direction.upper() == "SELL" and trend == "bullish"
+                ):
+                    score = min(score, 3)
+
+            news_risk = str(market.get("news_risk_level") or "").lower()
+            if news_risk == "high":
+                score = min(score, 3)
+
+            from app.services.auto_adjust_service import auto_adjust_service
+
+            await auto_adjust_service.maybe_auto_adjust_trade(
+                user_id=user_id,
+                trade_id=trade_id,
+                trigger="low_latency_open",
+                score_override=score,
+                market_context=market,
+            )
+        except Exception:
+            logger.exception(f"Low-latency auto-adjust precheck failed for trade {trade_id}")
 
     async def process_trade_opened(self, user_id: str, trade_data: Dict[str, Any]) -> Optional[Trade]:
         """Process a new trade being opened."""
@@ -250,6 +333,22 @@ class TradeProcessingService:
                 )
                 self._background_tasks.add(task)
                 task.add_done_callback(self._background_tasks.discard)
+
+                # 5b. Low-latency precheck for auto-adjust (does not wait for LLM).
+                fast_task = asyncio.create_task(
+                    self._run_low_latency_auto_adjust_precheck(
+                        user_id=user_id,
+                        trade_id=trade_id_str,
+                        symbol=trade.symbol,
+                        direction=trade.direction.value,
+                        entry_price=trade.entry_price,
+                        sl=trade.sl,
+                        tp=trade.tp,
+                        alert_dicts=[a.model_dump() for a in alerts],
+                    )
+                )
+                self._background_tasks.add(fast_task)
+                fast_task.add_done_callback(self._background_tasks.discard)
 
                 # 6. External notifications (webhook/email)
                 try:
@@ -387,6 +486,19 @@ class TradeProcessingService:
                             "ai_review": None,
                         },
                     )
+
+                # Beta auto-adjust hook: after score is persisted, optionally intervene
+                # on very low-quality open trades (gated by per-user settings + config).
+                try:
+                    from app.services.auto_adjust_service import auto_adjust_service
+
+                    await auto_adjust_service.maybe_auto_adjust_trade(
+                        user_id=user_id,
+                        trade_id=trade_id,
+                        trigger="score_update",
+                    )
+                except Exception:
+                    logger.exception(f"Auto-adjust evaluation failed for trade {trade_id}")
         except Exception:
             logger.exception(f"Background pre-trade AI failed saving/broadcasting for trade {trade_id}")
 
@@ -739,8 +851,17 @@ class TradeProcessingService:
                 await db.rollback()
                 return None
 
-    async def process_trade_updated(self, user_id: str, trade_data: Dict[str, Any]) -> Optional[Trade]:
-        """Process updates to an open trade (SL/TP changes)."""
+    async def process_trade_updated(
+        self,
+        user_id: str,
+        trade_data: Dict[str, Any],
+        live_pnl_only: bool = False,
+    ) -> Optional[Trade]:
+        """Process updates to an open trade.
+
+        `live_pnl_only=True` is used for high-frequency mark-to-market updates so
+        we avoid expensive behavioral/AI/notification work on every tick.
+        """
         ext_id = str(trade_data.get("external_id", ""))
         logger.info(f"Processing trade update for user {user_id}: {ext_id}")
 
@@ -760,6 +881,24 @@ class TradeProcessingService:
                     logger.debug(f"No open trade found for update external ID {ext_id}")
                     return None
 
+                live_pnl = trade_data.get("pnl")
+
+                if live_pnl_only:
+                    if live_pnl is not None:
+                        trade.pnl = float(live_pnl)
+                        await db.commit()
+
+                        if self._ws_manager:
+                            await self._ws_manager.broadcast_to_user(
+                                user_id,
+                                {
+                                    "type": "trade_updated",
+                                    "update_kind": "live_pnl",
+                                    "trade": _build_trade_payload(trade),
+                                },
+                            )
+                    return trade
+
                 # Snapshot OLD levels before overwriting — the AI needs the before→after diff
                 old_sl_snap = trade.sl
                 old_tp_snap = trade.tp
@@ -771,6 +910,8 @@ class TradeProcessingService:
 
                 trade.sl = new_sl
                 trade.tp = new_tp
+                if live_pnl is not None:
+                    trade.pnl = float(live_pnl)
 
                 # Re-run behavioral checks so flags reflect the updated SL/TP state.
                 # This clears stale alerts like `missing_sl_tp` when protection is added.
@@ -802,6 +943,7 @@ class TradeProcessingService:
                         user_id,
                         {
                             "type": "trade_updated",
+                            "update_kind": "modified",
                             "trade": _build_trade_payload(trade),
                         },
                     )

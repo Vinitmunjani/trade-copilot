@@ -11,6 +11,7 @@ from app.api.account import router as account_router
 from app.api.webhook import router as webhook_router
 from app.api.ws import router as ws_router
 from app.api.billing import router as billing_router
+from app.api.admin import router as admin_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -23,3 +24,4 @@ api_router.include_router(account_router)
 api_router.include_router(webhook_router)
 api_router.include_router(ws_router)
 api_router.include_router(billing_router)
+api_router.include_router(admin_router)

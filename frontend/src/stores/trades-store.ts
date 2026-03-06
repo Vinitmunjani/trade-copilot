@@ -11,6 +11,10 @@ function deriveSession(openTime: string | undefined | null): TradingSession {
   return "sydney";
 }
 
+function isOpenStatus(status: Trade["status"] | string | undefined): boolean {
+  return String(status || "").toLowerCase() === "open";
+}
+
 interface TradesState {
   trades: Trade[];
   openTrades: Trade[];
@@ -85,6 +89,7 @@ export const useTradesStore = create<TradesState>((set, get) => ({
           severity: flag.severity || "low",
           detected_at: new Date().toISOString(),
         })),
+        notes: trade.notes,
       }));
       set({ trades: mappedTrades, totalTrades: data.total || mappedTrades.length, currentPage: data.page || 1, isLoading: false });
     } catch {
@@ -133,6 +138,7 @@ export const useTradesStore = create<TradesState>((set, get) => ({
           severity: flag.severity || "low",
           detected_at: new Date().toISOString(),
         })),
+        notes: trade.notes,
       }));
       set({ openTrades: mappedTrades });
     } catch {
@@ -182,6 +188,7 @@ export const useTradesStore = create<TradesState>((set, get) => ({
           severity: flag.severity || "low",
           detected_at: new Date().toISOString(),
         })),
+        notes: trade.notes,
       };
       set({ selectedTrade: mappedTrade, isLoading: false });
     } catch {
@@ -193,7 +200,7 @@ export const useTradesStore = create<TradesState>((set, get) => ({
   },
 
   addTrade: (trade: Trade) => {
-    if (trade.status === "open") {
+    if (isOpenStatus(trade.status)) {
       set((s) => ({ openTrades: [trade, ...s.openTrades] }));
     } else {
       set((s) => ({ trades: [trade, ...s.trades] }));
@@ -202,7 +209,7 @@ export const useTradesStore = create<TradesState>((set, get) => ({
 
   updateTrade: (trade: Trade) => {
     set((s) => {
-      if (trade.status === "open") {
+      if (isOpenStatus(trade.status)) {
         return { openTrades: s.openTrades.map((t) => (t.id === trade.id ? trade : t)) };
       }
       // Trade closed — remove from open, add to closed

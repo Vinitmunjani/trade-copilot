@@ -2,6 +2,8 @@ import uuid
 import pytest
 from datetime import datetime, timezone
 import httpx
+from app.main import app
+from app.database import init_db
 
 from app.database import async_session_factory
 from app.models.user import User
@@ -11,6 +13,7 @@ from app.core.security import create_access_token
 
 @pytest.mark.asyncio
 async def test_patterns_and_alerts_endpoints():
+    await init_db()
     # create a user and some trades with behavioral flags
     async with async_session_factory() as db:
         user = User(
@@ -30,7 +33,8 @@ async def test_patterns_and_alerts_endpoints():
             direction="BUY",
             entry_price=1.0,
             exit_price=1.1,
-            pnl=100,
+                pnl=100,
+                lot_size=0.1,
             pnl_r=1,
             status=TradeStatus.CLOSED,
             open_time=datetime.now(timezone.utc),
@@ -44,7 +48,8 @@ async def test_patterns_and_alerts_endpoints():
             direction="SELL",
             entry_price=1.5,
             exit_price=1.4,
-            pnl=-50,
+                pnl=-50,
+                lot_size=0.1,
             pnl_r=-0.5,
             status=TradeStatus.CLOSED,
             open_time=datetime.now(timezone.utc),
@@ -58,7 +63,8 @@ async def test_patterns_and_alerts_endpoints():
     token = create_access_token({"sub": user_id})
     headers = {"Authorization": f"Bearer {token}"}
 
-    async with httpx.AsyncClient(base_url="http://127.0.0.1:8000", headers=headers) as client:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver", headers=headers) as client:
         res = await client.get("/api/v1/analysis/patterns")
         assert res.status_code == 200
         data = res.json()

@@ -1,5 +1,6 @@
 import time
 import pytest
+import uuid
 from sqlalchemy import select
 
 from app.database import init_db, async_session_factory
@@ -14,8 +15,9 @@ async def test_handle_checkout_session_creates_subscription():
     await init_db()
 
     # Create a test user
+    test_email = f"webhook-test-{uuid.uuid4().hex[:8]}@example.com"
     async with async_session_factory() as db:
-        user = User(email="webhook-test@example.com", hashed_password="x")
+        user = User(email=test_email, hashed_password="x")
         db.add(user)
         await db.commit()
         await db.refresh(user)
@@ -31,7 +33,7 @@ async def test_handle_checkout_session_creates_subscription():
             "object": {
                 "customer": "cus_test_123",
                 "subscription": "sub_test_123",
-                "customer_email": "webhook-test@example.com",
+                "customer_email": test_email,
                 "current_period_end": int(time.time()) + 3600,
             }
         },

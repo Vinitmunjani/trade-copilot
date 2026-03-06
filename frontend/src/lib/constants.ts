@@ -1,6 +1,17 @@
 // API endpoint - routes to AWS backend
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/api/v1/ws/trades";
+
+function deriveWsUrlFromApi(apiUrl: string): string {
+  try {
+    const parsed = new URL(apiUrl);
+    const wsProtocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProtocol}//${parsed.host}/api/v1/ws/trades`;
+  } catch {
+    return "ws://localhost:8000/api/v1/ws/trades";
+  }
+}
+
+export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || deriveWsUrlFromApi(API_URL);
 export const SHOW_AI_TOKEN_USAGE = (process.env.NEXT_PUBLIC_SHOW_AI_TOKEN_USAGE || "false").toLowerCase() === "true";
 
 export const SESSIONS = [
